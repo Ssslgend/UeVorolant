@@ -1,0 +1,74 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); printf '%s\\n' \"$INPUT\" >> '~\\.openclaw\\openclaw-cc-bridge\\hook-inbox\\events.jsonl'"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); printf '%s\\n' \"$INPUT\" >> '~\\.openclaw\\openclaw-cc-bridge\\hook-inbox\\events.jsonl'",
+            "async": true
+          }
+        ],
+        "matcher": "Edit|Write|Bash"
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); printf '%s\\n' \"$INPUT\" >> '~\\.openclaw\\openclaw-cc-bridge\\hook-inbox\\events.jsonl'",
+            "async": true
+          }
+        ],
+        "matcher": "Edit|Write|Bash"
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); printf '%s\\n' \"$INPUT\" >> '~\\.openclaw\\openclaw-cc-bridge\\hook-inbox\\events.jsonl'",
+            "async": true
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); printf '%s\\n' \"$INPUT\" >> '~\\.openclaw\\openclaw-cc-bridge\\hook-inbox\\events.jsonl'",
+            "async": true
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); printf '%s\\n' \"$INPUT\" >> '~\\.openclaw\\openclaw-cc-bridge\\hook-inbox\\events.jsonl'",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

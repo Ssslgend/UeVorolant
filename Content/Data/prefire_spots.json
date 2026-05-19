@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "spots": [
+    {
+      "name": "Ascent A Main",
+      "map": "Ascent",
+      "mapUuid": "7eae9e8e-e4f9-bd3d-0c8e-4c8c4cc4c44c",
+      "player": {
+        "gamePosition": { "x": 1200, "y": 3400, "z": 0 },
+        "minimapNormalized": { "x": 0.42, "y": 0.31 }
+      },
+      "enemy": {
+        "gamePosition": { "x": 1800, "y": 4100, "z": 0 },
+        "minimapNormalized": { "x": 0.55, "y": 0.28 }
+      },
+      "distanceUnits": 812
+    },
+    {
+      "name": "Ascent A Site Back",
+      "map": "Ascent",
+      "mapUuid": "7eae9e8e-e4f9-bd3d-0c8e-4c8c4cc4c44c",
+      "player": {
+        "gamePosition": { "x": 2000, "y": 2800, "z": 0 },
+        "minimapNormalized": { "x": 0.48, "y": 0.35 }
+      },
+      "enemy": {
+        "gamePosition": { "x": 2500, "y": 2200, "z": 0 },
+        "minimapNormalized": { "x": 0.52, "y": 0.42 }
+      },
+      "distanceUnits": 600
+    }
+  ]
+}
