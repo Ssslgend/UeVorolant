@@ -272,8 +272,36 @@ def filter_original():
     return kept, stats
 
 
+def sample_floor_top(x, y, fallback):
+    """Highest walkable floor top near (x,y) from original/fill meshes (not PB_ pads)."""
+    best = None
+    for obj in bpy.data.objects:
+        if obj.type != "MESH":
+            continue
+        n = obj.name.lower()
+        if n.startswith(("pb_", "hg_", "st_", "ramp_", "seal_", "stand_")):
+            continue
+        if not any(k in n for k in ("floor", "ground", "platform", "scaffold_10_platform")):
+            continue
+        mins, maxs, center, size = world_bbox(obj)
+        if size.x < 2 or size.y < 2:
+            continue
+        if mins.x - 1.5 <= x <= maxs.x + 1.5 and mins.y - 1.5 <= y <= maxs.y + 1.5:
+            top = maxs.z
+            if 55.0 <= top <= 90.0:
+                if best is None or top > best:
+                    best = top
+    return fallback if best is None else best
+
+
 def add_closure_and_playable_blocks():
-    """Wall thickness, outer seal, stairs/ramps, headglitch boxes, duel points."""
+    """Wall thickness, outer seal, stairs/ramps, headglitch boxes, duel points.
+
+    Floor policy (Uiana/ValorantPorting style):
+    - Original floor meshes keep their transforms and multi-level topZ.
+    - PB_FL_* pads only fill gaps and must use measured local floor top.
+    - NO global flat slab — the map is not one plane.
+    """
     mats = {
         "wall": make_mat("MAT_PB_Wall", (0.62, 0.58, 0.52), 0.8),
         "floor": make_mat("MAT_PB_Floor", (0.70, 0.65, 0.55), 0.82),
@@ -282,145 +310,155 @@ def add_closure_and_playable_blocks():
         "hs": make_mat("MAT_PB_Headshot", (1.0, 0.2, 0.2), 0.45),
     }
 
-    # Outer seal walls (closed perimeter around playfield)
-    add_box("Seal_N", (-55, 70, 80), (220, 2, 40), mats["wall"], "10_Closure", 0)
-    add_box("Seal_S", (-55, -130, 80), (220, 2, 40), mats["wall"], "10_Closure", 0)
-    add_box("Seal_W", (-155, -30, 80), (2, 200, 40), mats["wall"], "10_Closure", 0)
-    add_box("Seal_E", (40, -30, 80), (2, 200, 40), mats["wall"], "10_Closure", 0)
-    # floor slab under playfield for no fall-out
-    add_box("Playfield_Slab", (-55, -30, 60), (195, 200, 1.5), mats["floor"], "10_Closure", 0)
+    # Outer seal walls (perimeter only — do not flatten interior floors)
+    add_box("Seal_N", (-55, 70, 80), (220, 2, 50), mats["wall"], "10_Closure", 0)
+    add_box("Seal_S", (-55, -130, 80), (220, 2, 50), mats["wall"], "10_Closure", 0)
+    add_box("Seal_W", (-155, -30, 80), (2, 200, 50), mats["wall"], "10_Closure", 0)
+    add_box("Seal_E", (40, -30, 80), (2, 200, 50), mats["wall"], "10_Closure", 0)
+    # Deep safety net far below lowest playable floor (61.2), not a play surface
+    add_box("Safety_Net", (-55, -30, 50), (195, 200, 1.0), mats["wall"], "10_Closure", 0)
 
-    # Key floor pads with original topZ (ensure walkable continuity)
+    # Gap-fill floor pads: explicit source topZ (must match original clusters)
+    # name, xy, topZ (from inventory), size_xy
     floors = [
-        ("PB_FL_BSite", (-114.9, 4.7), 62.71, (34, 30)),
-        ("PB_FL_BMain", (-91.5, -22.3), 63.88, (30, 14)),
+        ("PB_FL_BSite", (-114.9, 4.7), 62.71, (33, 28)),
+        ("PB_FL_BSite2", (-115.8, -22.5), 61.66, (11, 28)),
+        ("PB_FL_BMain", (-91.5, -22.3), 63.88, (29, 13)),
+        ("PB_FL_BMain1", (-102.3, -29.3), 63.88, (10, 14)),
         ("PB_FL_Market", (-93.6, -49.2), 63.88, (28, 26)),
         ("PB_FL_Switch", (-97.4, -0.7), 64.52, (46, 30)),
-        ("PB_FL_MidW", (-54.0, -39.9), 65.33, (24, 48)),
-        ("PB_FL_MidN", (-48.9, 1.3), 66.42, (21, 29)),
+        ("PB_FL_MarketW", (-78.9, -25.6), 65.15, (20, 21)),
+        ("PB_FL_BPlat", (-77.6, 0.9), 66.74, (6, 13)),
+        ("PB_FL_MidW", (-54.0, -39.9), 65.33, (23, 48)),
+        ("PB_FL_MidN", (-48.9, 1.3), 66.42, (20, 29)),
+        ("PB_FL_MidWell", (-66.8, -3.2), 66.42, (15, 15)),
         ("PB_FL_MidS", (-35.0, -49.0), 67.69, (28, 48)),
-        ("PB_FL_AGarden", (6.3, -19.7), 67.69, (30, 14)),
+        ("PB_FL_AGarden", (6.3, -19.7), 67.69, (29, 13)),
+        ("PB_FL_A_TreeRoom", (-19.4, -19.8), 67.70, (22, 10)),
         ("PB_FL_AMain", (-0.7, -33.6), 67.81, (34, 15)),
         ("PB_FL_AMainS", (-12.1, -52.0), 67.69, (16, 24)),
+        ("PB_FL_AMainFarS", (-14.0, -69.7), 67.69, (16, 12)),
         ("PB_FL_AtkW", (-72.8, -89.1), 65.15, (32, 22)),
         ("PB_FL_AtkE", (-27.2, -87.9), 67.69, (16, 30)),
         ("PB_FL_AtkM", (-46.0, -89.0), 66.42, (22, 22)),
-        ("PB_FL_Def", (-46.6, 32.3), 66.45, (32, 33)),
+        ("PB_FL_AtkCourt", (-64.4, -69.6), 65.15, (31, 20)),
+        ("PB_FL_Def", (-46.6, 32.3), 66.45, (31, 33)),
         ("PB_FL_DefA", (-21.6, -2.2), 70.90, (22, 22)),
         ("PB_FL_Heaven", (0.0, 11.5), 72.90, (28, 16)),
     ]
+    floor_levels = []
     for name, xy, top, size in floors:
         add_box(name, (xy[0], xy[1], top - 0.12), (size[0], size[1], 0.25), mats["floor"], "11_Floors", 0.02)
+        floor_levels.append({"name": name, "x": xy[0], "y": xy[1], "top_z": top})
 
-    # Connector corridors (navmesh width >= 2m)
+    # Connector corridors: each sits at its LOCAL floor top (not one global height)
     connectors = [
-        ("PB_Corr_Atk_to_AMain", (-12, -72, 67.6), (16, 22, 1.0)),
-        ("PB_Corr_AMain_to_A", (0, -28, 67.7), (18, 18, 1.0)),
-        ("PB_Corr_Atk_to_MidS", (-38, -70, 67.6), (14, 18, 1.0)),
-        ("PB_Corr_MidS_to_MidN", (-42, -20, 66.5), (14, 36, 1.0)),
-        ("PB_Corr_MidN_to_Def", (-48, 16, 66.5), (16, 18, 1.0)),
-        ("PB_Corr_Atk_to_BMain", (-82, -70, 65.1), (18, 18, 1.0)),
-        ("PB_Corr_BMain_to_B", (-92, -10, 63.9), (18, 18, 1.0)),
-        ("PB_Corr_MidW_to_Market", (-72, -30, 65.1), (16, 18, 1.0)),
-        ("PB_Corr_Market_to_B", (-94, -30, 63.9), (18, 16, 1.0)),
-        ("PB_Corr_Def_to_B", (-68, 20, 66.5), (18, 16, 1.0)),
-        ("PB_Corr_Mid_to_Heaven", (-20, 5, 70.0), (16, 14, 1.0)),
+        ("PB_Corr_Atk_to_AMain", (-12, -72), 67.69, (16, 22)),
+        ("PB_Corr_AMain_to_A", (0, -28), 67.75, (18, 18)),
+        ("PB_Corr_Atk_to_MidS", (-38, -70), 67.69, (14, 18)),
+        ("PB_Corr_MidS_to_MidN", (-42, -20), 66.50, (14, 36)),
+        ("PB_Corr_MidN_to_Def", (-48, 16), 66.45, (16, 18)),
+        ("PB_Corr_Atk_to_BMain", (-82, -70), 65.15, (18, 18)),
+        ("PB_Corr_BMain_to_B", (-92, -10), 63.88, (18, 18)),
+        ("PB_Corr_MidW_to_Market", (-72, -30), 65.15, (16, 18)),
+        ("PB_Corr_Market_to_B", (-94, -30), 63.88, (18, 16)),
+        ("PB_Corr_Def_to_B", (-68, 20), 66.50, (18, 16)),
+        ("PB_Corr_Mid_to_Heaven", (-20, 5), 70.90, (16, 14)),
+        ("PB_Corr_Switch_to_BMain", (-95, -12), 64.20, (16, 14)),
     ]
-    for name, loc, size in connectors:
-        add_box(name, loc, size, mats["floor"], "11_Floors", 0.02)
+    for name, xy, top, size in connectors:
+        add_box(name, (xy[0], xy[1], top - 0.10), (size[0], size[1], 0.22), mats["floor"], "11_Floors", 0.02)
 
-    # Thickened wall segments that close major sightline breaks (playable thickness 0.4)
+    # Thickened wall segments (0.4m) — vertical extents follow local floors
     walls = [
         ("PB_Wall_ASite_N", (8, 10, 74), (40, 0.4, 14)),
         ("PB_Wall_ASite_E", (28, -10, 74), (0.4, 40, 14)),
         ("PB_Wall_ASite_S", (8, -36, 74), (40, 0.4, 14)),
         ("PB_Wall_AMain_W", (-18, -48, 74), (0.4, 40, 14)),
         ("PB_Wall_AMain_E", (16, -48, 74), (0.4, 40, 14)),
-        ("PB_Wall_Mid_W", (-58, -35, 74), (0.4, 70, 16)),
-        ("PB_Wall_Mid_E", (-18, -35, 74), (0.4, 70, 16)),
+        ("PB_Wall_Mid_W", (-58, -35, 72), (0.4, 70, 16)),
+        ("PB_Wall_Mid_E", (-18, -35, 72), (0.4, 70, 16)),
         ("PB_Wall_Mid_S", (-38, -72, 74), (30, 0.4, 14)),
-        ("PB_Wall_B_N", (-110, 22, 72), (40, 0.4, 16)),
-        ("PB_Wall_B_W", (-140, 5, 72), (0.4, 40, 16)),
-        ("PB_Wall_B_S", (-110, -14, 72), (40, 0.4, 14)),
-        ("PB_Wall_Market_N", (-94, -28, 72), (30, 0.4, 14)),
-        ("PB_Wall_Market_S", (-94, -58, 72), (30, 0.4, 14)),
+        ("PB_Wall_B_N", (-110, 22, 70), (40, 0.4, 16)),
+        ("PB_Wall_B_W", (-140, 5, 70), (0.4, 40, 16)),
+        ("PB_Wall_B_S", (-110, -14, 70), (40, 0.4, 14)),
+        ("PB_Wall_Market_N", (-94, -28, 70), (30, 0.4, 14)),
+        ("PB_Wall_Market_S", (-94, -58, 70), (30, 0.4, 14)),
         ("PB_Wall_Atk_S", (-55, -108, 72), (80, 0.4, 16)),
         ("PB_Wall_Def_N", (-48, 52, 72), (50, 0.4, 16)),
     ]
     for name, loc, size in walls:
         add_box(name, loc, size, mats["wall"], "12_Walls", 0.03)
 
-    # Stairs / ramps between levels
-    # Atk -> A main (65.15 -> 67.8)  rise 2.65 → 14 steps @0.19
-    add_stair_run("ST_Atk_AMain", (-20, -78, 65.15), 14, 0.19, 0.55, 6, mats["ramp"], "13_Stairs")
-    # Mid well -> Mid north (65.33 -> 66.42)  rise 1.09 → 6 @0.18
-    add_stair_run("ST_MidW_MidN", (-52, -8, 65.33), 6, 0.18, 0.5, 5, mats["ramp"], "13_Stairs")
-    # Mid north -> Heaven (66.42 -> 72.9)  rise 6.48 → 33 @0.20
-    add_stair_run("ST_Mid_Heaven", (-28, 8, 66.42), 33, 0.20, 0.55, 5, mats["ramp"], "13_Stairs")
-    # Def -> DefPathA (66.45 -> 70.9)  rise 4.45 → 23 @0.19
-    add_stair_run("ST_Def_DefA", (-28, 12, 66.45), 23, 0.19, 0.5, 5, mats["ramp"], "13_Stairs")
-    # B platform hop (64.5 -> 66.74)  rise 2.24 → 12 @0.19
-    add_stair_run("ST_B_Plat", (-82, 2, 64.5), 12, 0.19, 0.5, 5, mats["ramp"], "13_Stairs")
+    # Stairs connect measured level pairs (rise computed from real topZ)
+    # (name, origin_xy, z0, z1, width)
+    stair_specs = [
+        ("ST_Atk_AMain", (-20, -78), 65.15, 67.81, 6),   # AtkW -> AMain
+        ("ST_MidW_MidN", (-52, -8), 65.33, 66.42, 5),    # MidW -> MidN
+        ("ST_Mid_Heaven", (-28, 8), 66.42, 72.90, 5),    # MidN -> Heaven
+        ("ST_Def_DefA", (-28, 12), 66.45, 70.90, 5),     # Def -> DefA
+        ("ST_B_Plat", (-82, 2), 64.52, 66.74, 5),        # Switch -> BPlat
+        ("ST_BSite_Up", (-100, -8), 63.88, 64.52, 5),    # BMain -> Switch
+        ("ST_AMain_Garden", (2, -28), 67.69, 67.81, 6),  # slight step
+    ]
+    for name, xy, z0, z1, width in stair_specs:
+        rise = abs(z1 - z0)
+        steps = max(2, int(round(rise / 0.19)))
+        step_h = rise / steps
+        add_stair_run(name, (xy[0], xy[1], z0), steps, step_h, 0.5, width, mats["ramp"], "13_Stairs")
 
-    # Broad ramps (walkable 45deg approx) using stacked thin boxes
     for i in range(8):
         add_box(
             f"Ramp_Market_{i}",
-            (-80, -32 + i * 1.2, 64.0 + i * 0.18),
-            (8, 1.2, 0.35),
+            (-80, -32 + i * 1.2, 63.88 + i * 0.16),
+            (8, 1.2, 0.32),
             mats["ramp"],
             "13_Stairs",
             0.02,
         )
 
-    # Headglitch covers per duel line (top ~1.15m above local floor)
-    # each: name, xy, floor_top, box_h
+    # Headglitch: floor_top measured from original floors at (x,y)
     hg = [
-        # A site
         ("HG_A_Default", (17.1, -23.5), 67.69, 1.15),
         ("HG_A_Default2", (19.6, -23.5), 67.69, 1.15),
         ("HG_A_Garden", (13.3, -5.1), 67.69, 1.15),
         ("HG_A_Box", (10.7, -4.5), 67.69, 1.25),
         ("HG_A_Arch", (8.0, -26.0), 67.69, 1.15),
-        # A main
         ("HG_AMain_1", (-7.7, -42.6), 67.81, 1.20),
         ("HG_AMain_2", (-7.7, -55.0), 67.69, 1.20),
         ("HG_AMain_3", (6.0, -33.6), 67.81, 1.15),
-        # Mid
         ("HG_Mid_1", (-36.3, -55.0), 67.69, 1.20),
         ("HG_Mid_2", (-47.7, -55.0), 67.69, 1.20),
         ("HG_Mid_Tall", (-37.7, -57.3), 67.69, 1.25),
-        ("HG_Mid_Pizza", (-38.0, -20.0), 67.69, 1.15),
+        ("HG_Mid_Pizza", (-38.0, -20.0), 66.42, 1.15),
         ("HG_Mid_Tiles", (-38.0, -30.0), 67.69, 1.15),
-        # B site
         ("HG_B_Default", (-110.0, 1.9), 62.71, 1.15),
         ("HG_B_Default2", (-109.3, -0.7), 62.71, 1.15),
         ("HG_B_Boat", (-106.2, 13.3), 62.71, 1.20),
         ("HG_B_Platform", (-77.6, 0.9), 66.74, 1.15),
-        # B main / market
         ("HG_BMain", (-91.5, -22.3), 63.88, 1.15),
         ("HG_Market_Door", (-86.0, -28.0), 63.88, 1.15),
         ("HG_Market_Mid", (-80.0, -36.0), 63.88, 1.15),
-        # Heaven / def / spawn holds
         ("HG_Heaven", (-5.0, 12.0), 72.90, 1.15),
         ("HG_DefA", (-21.6, -2.2), 70.90, 1.15),
         ("HG_Atk_Hold", (-55.0, -90.0), 65.15, 1.15),
         ("HG_Def_Hold", (-46.6, 32.3), 66.45, 1.15),
     ]
     cover_pts = {}
-    for name, xy, floor, h in hg:
+    for name, xy, fallback, h in hg:
+        floor = sample_floor_top(xy[0], xy[1], fallback)
         add_box(name, (xy[0], xy[1], floor + h * 0.5), (1.6, 2.2, h), mats["cover"], "14_Headglitch", 0.05)
         cover_pts[name] = {
             "name": name,
             "x": xy[0],
             "y": xy[1],
             "floor_top": floor,
+            "floor_top_fallback": fallback,
             "cover_height": h,
             "stand_eye_z": floor + 1.60,
             "crouch_head_z": floor + 1.10,
         }
 
-    # Explicit duel LINES: attacker-side stand ↔ defender-side cover
     duel_lines = [
         ("DL_A_Main_to_Default", "Stand_AMain_Peek", "HG_A_Default"),
         ("DL_A_Main_to_Garden", "Stand_AMain_Peek", "HG_A_Garden"),
@@ -442,7 +480,6 @@ def add_closure_and_playable_blocks():
         ("DL_A_Site_to_Main", "Stand_A_Site", "HG_AMain_1"),
     ]
 
-    # stand marker height is 0.12; reuse stand table below for coords
     stand_xy = {
         "Stand_AMain_Peek": (-2.0, -33.6, 67.81),
         "Stand_AGarden_Peek": (6.3, -19.7, 67.69),
@@ -461,6 +498,7 @@ def add_closure_and_playable_blocks():
     duel_points = []
     for line_id, stand_name, cover_name in duel_lines:
         sx, sy, sf = stand_xy[stand_name]
+        sf = sample_floor_top(sx, sy, sf)
         cover = cover_pts[cover_name]
         duel_points.append(
             {
@@ -479,25 +517,15 @@ def add_closure_and_playable_blocks():
             }
         )
 
-    # paired stand positions (for nav / spawn)
-    stands = [
-        ("Stand_AMain_Peek", (-2.0, -33.6), 67.81),
-        ("Stand_AGarden_Peek", (6.3, -19.7), 67.69),
-        ("Stand_Heaven_Peek", (0.0, 11.5), 72.90),
-        ("Stand_Mid_S", (-38.0, -40.0), 67.69),
-        ("Stand_Mid_N", (-48.0, 0.0), 66.42),
-        ("Stand_BMain_Peek", (-91.5, -22.3), 63.88),
-        ("Stand_BPlat_Peek", (-77.6, 0.9), 66.74),
-        ("Stand_Market_Door", (-86.0, -28.0), 63.88),
-        ("Stand_Atk_Spawn", (-55.0, -90.0), 65.15),
-        ("Stand_Def_Spawn", (-46.6, 32.3), 66.45),
-        ("Stand_DefA", (-21.6, -2.2), 70.90),
-        ("Stand_A_Site", (8.2, -4.5), 67.69),
-    ]
-    for name, xy, floor in stands:
-        add_box(name, (xy[0], xy[1], floor + 0.05), (1.0, 1.0, 0.12), mats["hs"], "15_StandMarkers", 0.01)
+    stands = []
+    for name, (x, y), fallback in [
+        (n, (v[0], v[1]), v[2]) for n, v in stand_xy.items()
+    ]:
+        floor = sample_floor_top(x, y, fallback)
+        add_box(name, (x, y, floor + 0.05), (1.0, 1.0, 0.12), mats["hs"], "15_StandMarkers", 0.01)
+        stands.append({"name": name, "x": x, "y": y, "floor_top": floor})
 
-    return duel_points, stands
+    return duel_points, stands, floor_levels
 
 
 def check_connectivity():
@@ -671,7 +699,7 @@ def main():
     kept, filter_stats = filter_original()
     print("[Play] filter:", filter_stats)
 
-    duel_points, stands = add_closure_and_playable_blocks()
+    duel_points, stands, floor_levels = add_closure_and_playable_blocks()
 
     # Poly budget: decimate kept originals toward 400k total
     bpy.context.view_layer.update()
@@ -719,6 +747,8 @@ def main():
         "total_verts": total_verts,
         "duel_points": duel_points,
         "stand_points": stands,
+        "floor_levels": floor_levels,
+        "floor_level_count": len({round(f["top_z"], 2) for f in floor_levels}),
         "connectivity": connectivity,
         "requirements": {
             "max_polys": 400000,

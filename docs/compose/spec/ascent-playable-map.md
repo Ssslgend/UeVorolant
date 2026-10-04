@@ -23,7 +23,8 @@ commits: fec6688..3dfd147
 2. `bmesh.create_cube(size=1)+scale(size/2)` 会得到半尺寸几何；已改为 `size=2` 并加实测校验。
 3. 连通检测不能用自放的 `PB_Corr_*` 自证，改为排除补块后的地板图 BFS。
 4. 「对枪点」必须是站位↔掩体成对的线，不能只数箱子。
-5. 环境禁止 `git worktree add`，规格与实现在 master 工作区完成。
+5. **地面不是一块平板**：原图 14+ 级 topZ；统一 slab 会毁掉高低差与对枪线。已改为保留原地板 + 局部填缝（Uiana/ValorantPorting 同思路：保 transform、不抹平标高）。
+6. 环境禁止 `git worktree add`，规格与实现在 master 工作区完成。
 
 ## [S1] Problem
 
@@ -43,10 +44,14 @@ commits: fec6688..3dfd147
 
 ### 2.3 可玩性补全
 
-1. 墙厚 ≥0.3m（实现 0.4m），外圈 Seal 封闭。  
-2. 楼梯步高 ≈0.2m，连通高差。  
-3. Navmesh 走廊：Atk→A/B/Mid→Market→Def 图连通（BFS，排除自建补块）。  
-4. ≥12 条对枪线 = 站位 + headglitch 箱（箱高 1.1–1.3m；眼高 1.60 / 蹲 1.10）。
+1. **地面标高必须多层**（参考 Uiana / ValorantPorting：保留原始 actor transform，禁止统一平面）。  
+   - 原图可玩区 topZ 约 **61.2–72.9**（报告 `floor_levels`）。  
+   - `PB_FL_*` 仅作缝隙填补，高度取该点实测地板顶面。  
+   - 禁止全图 `Playfield_Slab` 一类的大平板。
+2. 墙厚 ≥0.3m（实现 0.4m），外圈 Seal 封闭。  
+3. 楼梯步高 ≈0.2m，按**实测高差**生成（如 MidN 66.42→Heaven 72.90）。  
+4. Navmesh 走廊：Atk→A/B/Mid→Market→Def 图连通（BFS，排除自建补块）。  
+5. ≥12 条对枪线 = 站位 + headglitch 箱（箱高 1.1–1.3m；眼高 1.60 / 蹲 1.10）。
 
 ### 2.4 输出
 
