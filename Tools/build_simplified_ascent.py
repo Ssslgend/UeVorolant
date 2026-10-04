@@ -80,7 +80,7 @@ def make_mat(name, color, rough=0.65, metallic=0.0):
 
 
 def add_box(name, location, size, material, collection, bevel=0.08):
-    bpy.ops.mesh.primitive_cube_add(size=1, location=location)
+    bpy.ops.mesh.primitive_cube_add(size=2, location=location)
     obj = bpy.context.active_object
     obj.name = name
     obj.scale = (size[0] / 2, size[1] / 2, size[2] / 2)

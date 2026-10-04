@@ -48,7 +48,7 @@ def add_box(name, location, size, material_name, collection, bevel=0.04):
     mat = bpy.data.materials.get(material_name)
     mesh = bpy.data.meshes.new(name + "_mesh")
     bm = bmesh.new()
-    bmesh.ops.create_cube(bm, size=1.0)
+    bmesh.ops.create_cube(bm, size=2.0)
     bm.to_mesh(mesh)
     bm.free()
     mesh.transform(Matrix.Diagonal((size[0] / 2, size[1] / 2, size[2] / 2, 1.0)))
