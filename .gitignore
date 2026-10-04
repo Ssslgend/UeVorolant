@@ -16,6 +16,10 @@ Content/Meshes/
 Content/Materials/
 Content/Textures/
 Content/Maps/
+Content/Mat/
+Content/__ExternalActors__/
+Content/Collections/
+Content/Developers/
 
 # UE 资产 (太大)
 *.uasset
@@ -63,6 +67,11 @@ Tools/SpotEditor/dist/
 __pycache__/
 *.pyc
 .DS_Store
+
+# Agent / local tool state
+.superpowers/
+.codex/
+*.blend1
 
 # ============ 保留 ============
 !.gitignore

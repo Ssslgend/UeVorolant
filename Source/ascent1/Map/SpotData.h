@@ -54,7 +54,7 @@ struct ASCENT1_API FPrefireSpot
 	FGamePosition Enemy;
 
 	UPROPERTY()
-	float DistanceUnits;
+	float DistanceUnits = 0.0f;
 
 	FVector GetPlayerUEPos() const;
 	FVector GetEnemyUEPos() const;

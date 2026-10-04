@@ -2,10 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "../Player/AscWeaponComponent.h"
 #include "EnemyTarget.generated.h"
 
 class UCapsuleComponent;
 class USphereComponent;
+class UStaticMeshComponent;
 class AAscCharacter;
 
 UENUM(BlueprintType)
@@ -33,7 +35,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Bot")
 	void SetPeekPositions(const FVector& HidePos, const FVector& PeekPos);
 
-	void OnShotByPlayer(const FVector& HitPoint);
+	EHitRegion OnShotByPlayer(const FVector& HitPoint);
+
+	float GetReactionTimeMs() const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -51,6 +55,12 @@ protected:
 
 	UPROPERTY(VisibleAnywhere)
 	USphereComponent* HeadCollision;
+
+	UPROPERTY(VisibleAnywhere)
+	UStaticMeshComponent* BodyVisual;
+
+	UPROPERTY(VisibleAnywhere)
+	UStaticMeshComponent* HeadVisual;
 
 	// ---- Bot fire timing ----
 	UPROPERTY(EditDefaultsOnly, Category = "Bot|Timing")
@@ -88,6 +98,7 @@ protected:
 	float EyeHeight = 160.0f;
 
 	bool bIsCrouching;
+	float SpawnTimeSeconds;
 
 	void UpdatePeek(float DeltaTime);
 	EHitRegion ProcessHit(const FVector& HitPoint) const;

@@ -2,6 +2,8 @@
 #include "../Player/AscCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "UObject/ConstructorHelpers.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -19,14 +21,38 @@ AEnemyTarget::AEnemyTarget()
 	HeadCollision->SetSphereRadius(HeadRadius);
 	HeadCollision->SetRelativeLocation(FVector(0.0f, 0.0f, StandHalfHeight - HeadRadius));
 
+	BodyVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyVisual"));
+	BodyVisual->SetupAttachment(BodyCollision);
+	BodyVisual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	BodyVisual->SetRelativeScale3D(FVector(0.5f, 0.5f, 1.6f));
+
+	HeadVisual = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeadVisual"));
+	HeadVisual->SetupAttachment(HeadCollision);
+	HeadVisual->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HeadVisual->SetRelativeScale3D(FVector(0.25f));
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	if (CylinderMesh.Succeeded())
+	{
+		BodyVisual->SetStaticMesh(CylinderMesh.Object);
+	}
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (SphereMesh.Succeeded())
+	{
+		HeadVisual->SetStaticMesh(SphereMesh.Object);
+	}
+
 	CurrentPeekState = EPeekState::Hidden;
 	bIsCrouching = false;
 	TimeInState = 0.0f;
+	SpawnTimeSeconds = 0.0f;
 }
 
 void AEnemyTarget::BeginPlay()
 {
 	Super::BeginPlay();
+	SpawnTimeSeconds = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0f;
 }
 
 void AEnemyTarget::Tick(float DeltaTime)
@@ -117,7 +143,7 @@ void AEnemyTarget::UpdatePeek(float DeltaTime)
 	}
 }
 
-void AEnemyTarget::OnShotByPlayer(const FVector& HitPoint)
+EHitRegion AEnemyTarget::OnShotByPlayer(const FVector& HitPoint)
 {
 	EHitRegion Region = ProcessHit(HitPoint);
 
@@ -126,10 +152,21 @@ void AEnemyTarget::OnShotByPlayer(const FVector& HitPoint)
 	if (Region == EHitRegion::Head)
 	{
 		Destroy();
-		return;
+		return Region;
 	}
 
 	ResetBot();
+	return Region;
+}
+
+float AEnemyTarget::GetReactionTimeMs() const
+{
+	const UWorld* World = GetWorld();
+	if (!World)
+	{
+		return 0.0f;
+	}
+	return (World->GetTimeSeconds() - SpawnTimeSeconds) * 1000.0f;
 }
 
 void AEnemyTarget::BotFire()

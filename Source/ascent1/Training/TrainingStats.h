@@ -10,25 +10,25 @@ struct ASCENT1_API FTrainingSummary
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly)
-	float HeadshotRate;
+	float HeadshotRate = 0.0f;
 
 	UPROPERTY(BlueprintReadOnly)
-	float HitRate;
+	float HitRate = 0.0f;
 
 	UPROPERTY(BlueprintReadOnly)
-	float AverageReactionTimeMs;
+	float AverageReactionTimeMs = 0.0f;
 
 	UPROPERTY(BlueprintReadOnly)
-	float BestReactionTimeMs;
+	float BestReactionTimeMs = 0.0f;
 
 	UPROPERTY(BlueprintReadOnly)
-	int32 TotalHits;
+	int32 TotalHits = 0;
 
 	UPROPERTY(BlueprintReadOnly)
-	int32 TotalShots;
+	int32 TotalShots = 0;
 
 	UPROPERTY(BlueprintReadOnly)
-	int32 Headshots;
+	int32 Headshots = 0;
 };
 
 USTRUCT(BlueprintType)
@@ -36,7 +36,7 @@ struct ASCENT1_API FTrainingSession
 {
 	GENERATED_BODY()
 
-	TSet<float> ReactionTimes;
+	TArray<float> ReactionTimes;
 	int32 TotalHits = 0;
 	int32 TotalShots = 0;
 	int32 Headshots = 0;

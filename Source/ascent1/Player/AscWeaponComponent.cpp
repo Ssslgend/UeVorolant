@@ -1,5 +1,6 @@
 #include "AscWeaponComponent.h"
 #include "AscCharacter.h"
+#include "../Core/AscGameState.h"
 #include "../Target/EnemyTarget.h"
 #include "Engine/World.h"
 #include "DrawDebugHelpers.h"
@@ -75,13 +76,25 @@ void UAscWeaponComponent::PerformTrace()
 
 	bool bHit = World->LineTraceSingleByChannel(Hit, CameraLocation, End, ECC_Visibility, Params);
 
+	bool bHitTarget = false;
+	bool bHeadshot = false;
+	float ReactionTimeMs = 0.0f;
+
 	if (bHit)
 	{
 		AEnemyTarget* Target = Cast<AEnemyTarget>(Hit.GetActor());
 		if (Target)
 		{
-			Target->OnShotByPlayer(Hit.Location);
+			ReactionTimeMs = Target->GetReactionTimeMs();
+			const EHitRegion Region = Target->OnShotByPlayer(Hit.Location);
+			bHitTarget = Region != EHitRegion::Miss;
+			bHeadshot = Region == EHitRegion::Head;
 		}
+	}
+
+	if (AAscGameState* GS = World->GetGameState<AAscGameState>())
+	{
+		GS->RecordShot(bHitTarget, bHeadshot, ReactionTimeMs);
 	}
 
 	CurrentSpread = FMath::Min(MaxSpread, CurrentSpread + SpreadIncrement);

@@ -11,11 +11,15 @@ AEnemyTarget* AEnemySpawner::SpawnBot(const FVector& Location, const FRotator& R
 {
 	DespawnAll();
 
-	if (!BotClass) return nullptr;
+	TSubclassOf<AEnemyTarget> SpawnClass = BotClass;
+	if (!SpawnClass)
+	{
+		SpawnClass = AEnemyTarget::StaticClass();
+	}
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-	ActiveBot = GetWorld()->SpawnActor<AEnemyTarget>(BotClass, Location, Rotation, Params);
+	ActiveBot = GetWorld()->SpawnActor<AEnemyTarget>(SpawnClass, Location, Rotation, Params);
 	return ActiveBot;
 }
 

@@ -91,15 +91,32 @@ void AAscCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	if (UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		EnhancedInput->BindAction(IA_Move, ETriggerEvent::Triggered, this, &AAscCharacter::Move);
-		EnhancedInput->BindAction(IA_Look, ETriggerEvent::Triggered, this, &AAscCharacter::Look);
-		EnhancedInput->BindAction(IA_Walk, ETriggerEvent::Started, this, &AAscCharacter::WalkPressed);
-		EnhancedInput->BindAction(IA_Walk, ETriggerEvent::Completed, this, &AAscCharacter::WalkReleased);
-		EnhancedInput->BindAction(IA_CrouchToggle, ETriggerEvent::Started, this, &AAscCharacter::CrouchPressed);
-		EnhancedInput->BindAction(IA_Jump, ETriggerEvent::Started, this, &ACharacter::Jump);
-		EnhancedInput->BindAction(IA_Fire, ETriggerEvent::Started, this, &AAscCharacter::FirePressed);
-		EnhancedInput->BindAction(IA_Fire, ETriggerEvent::Completed, this, &AAscCharacter::FireReleased);
+		if (IA_Move) EnhancedInput->BindAction(IA_Move, ETriggerEvent::Triggered, this, &AAscCharacter::Move);
+		if (IA_Look) EnhancedInput->BindAction(IA_Look, ETriggerEvent::Triggered, this, &AAscCharacter::Look);
+		if (IA_Walk)
+		{
+			EnhancedInput->BindAction(IA_Walk, ETriggerEvent::Started, this, &AAscCharacter::WalkPressed);
+			EnhancedInput->BindAction(IA_Walk, ETriggerEvent::Completed, this, &AAscCharacter::WalkReleased);
+		}
+		if (IA_CrouchToggle) EnhancedInput->BindAction(IA_CrouchToggle, ETriggerEvent::Started, this, &AAscCharacter::CrouchPressed);
+		if (IA_Jump) EnhancedInput->BindAction(IA_Jump, ETriggerEvent::Started, this, &ACharacter::Jump);
+		if (IA_Fire)
+		{
+			EnhancedInput->BindAction(IA_Fire, ETriggerEvent::Started, this, &AAscCharacter::FirePressed);
+			EnhancedInput->BindAction(IA_Fire, ETriggerEvent::Completed, this, &AAscCharacter::FireReleased);
+		}
 	}
+
+	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AAscCharacter::MoveForward);
+	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AAscCharacter::MoveRight);
+	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AAscCharacter::Turn);
+	PlayerInputComponent->BindAxis(TEXT("LookUp"), this, &AAscCharacter::LookUp);
+	PlayerInputComponent->BindAction(TEXT("Jump"), IE_Pressed, this, &ACharacter::Jump);
+	PlayerInputComponent->BindAction(TEXT("Walk"), IE_Pressed, this, &AAscCharacter::WalkPressed);
+	PlayerInputComponent->BindAction(TEXT("Walk"), IE_Released, this, &AAscCharacter::WalkReleased);
+	PlayerInputComponent->BindAction(TEXT("Crouch"), IE_Pressed, this, &AAscCharacter::CrouchPressed);
+	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AAscCharacter::FirePressed);
+	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Released, this, &AAscCharacter::FireReleased);
 }
 
 void AAscCharacter::SetWeaponType(EWeaponType NewType)
@@ -129,6 +146,36 @@ void AAscCharacter::Look(const FInputActionValue& Value)
 		AddControllerYawInput(LookAxis.X);
 		AddControllerPitchInput(LookAxis.Y);
 	}
+}
+
+void AAscCharacter::MoveForward(float Value)
+{
+	if (Controller && FMath::Abs(Value) > KINDA_SMALL_NUMBER)
+	{
+		const FRotator Rotation = Controller->GetControlRotation();
+		const FRotator YawRotation(0, Rotation.Yaw, 0);
+		AddMovementInput(FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X), Value);
+	}
+}
+
+void AAscCharacter::MoveRight(float Value)
+{
+	if (Controller && FMath::Abs(Value) > KINDA_SMALL_NUMBER)
+	{
+		const FRotator Rotation = Controller->GetControlRotation();
+		const FRotator YawRotation(0, Rotation.Yaw, 0);
+		AddMovementInput(FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y), Value);
+	}
+}
+
+void AAscCharacter::Turn(float Value)
+{
+	AddControllerYawInput(Value);
+}
+
+void AAscCharacter::LookUp(float Value)
+{
+	AddControllerPitchInput(Value);
 }
 
 void AAscCharacter::WalkPressed()  { bIsWalking = true; }

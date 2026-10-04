@@ -12,12 +12,12 @@ struct FTrainingRecord
 	UPROPERTY() FString Date;
 	UPROPERTY() FString MapName;
 	UPROPERTY() FString ModeName;
-	UPROPERTY() float HeadshotRate;
-	UPROPERTY() float HitRate;
-	UPROPERTY() float AverageReactionTimeMs;
-	UPROPERTY() float BestReactionTimeMs;
-	UPROPERTY() int32 TotalShots;
-	UPROPERTY() int32 TotalHits;
+	UPROPERTY() float HeadshotRate = 0.0f;
+	UPROPERTY() float HitRate = 0.0f;
+	UPROPERTY() float AverageReactionTimeMs = 0.0f;
+	UPROPERTY() float BestReactionTimeMs = 0.0f;
+	UPROPERTY() int32 TotalShots = 0;
+	UPROPERTY() int32 TotalHits = 0;
 };
 
 UCLASS()
@@ -33,7 +33,7 @@ public:
 	float Sensitivity = 1.0f;
 
 	UPROPERTY()
-	int32 TotalSessionsCompleted;
+	int32 TotalSessionsCompleted = 0;
 
 	void AddRecord(const FTrainingRecord& Record);
 	static UTrainingSaveGame* Load();

@@ -10,13 +10,13 @@ struct FRecoilStep
 	GENERATED_BODY()
 
 	UPROPERTY(EditDefaultsOnly)
-	float PitchOffset;
+	float PitchOffset = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly)
-	float YawOffset;
+	float YawOffset = 0.0f;
 
 	UPROPERTY(EditDefaultsOnly)
-	float TimeToRecover;
+	float TimeToRecover = 0.0f;
 };
 
 UCLASS(BlueprintType)

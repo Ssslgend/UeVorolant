@@ -80,9 +80,9 @@ void APrefireArena::OnPlayerHitBot(AAscCharacter* Player, const FVector& HitPoin
 	float ReactionTime = (GetWorld()->GetTimeSeconds() - SpotStartTime) * 1000.0f;
 
 	BotFireTimerHandle.Invalidate();
-	ActiveBot->OnShotByPlayer(HitPoint);
+	const EHitRegion HitRegion = ActiveBot->OnShotByPlayer(HitPoint);
 
-	if (!IsValid(ActiveBot)) // headshot = destroy
+	if (HitRegion == EHitRegion::Head || !IsValid(ActiveBot))
 	{
 		ActiveBot = nullptr;
 		OnSpotCompleted.Broadcast(CurrentSpotIndex);

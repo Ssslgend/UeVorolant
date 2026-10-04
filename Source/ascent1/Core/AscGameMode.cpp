@@ -3,6 +3,8 @@
 #include "AscPlayerController.h"
 #include "../Map/PrefireArena.h"
 #include "../Player/AscCharacter.h"
+#include "../Training/TrainingHubBuilder.h"
+#include "../UI/TrainingHUD.h"
 #include "Kismet/GameplayStatics.h"
 
 AAscGameMode::AAscGameMode()
@@ -10,6 +12,7 @@ AAscGameMode::AAscGameMode()
 	DefaultPawnClass = AAscCharacter::StaticClass();
 	PlayerControllerClass = AAscPlayerController::StaticClass();
 	GameStateClass = AAscGameState::StaticClass();
+	HUDClass = ATrainingHUD::StaticClass();
 	SpotDataFilePath = TEXT("prefire_spots.json");
 }
 
@@ -21,6 +24,11 @@ void AAscGameMode::BeginPlay()
 	if (!Arena)
 	{
 		Arena = GetWorld()->SpawnActor<APrefireArena>();
+	}
+
+	if (!UGameplayStatics::GetActorOfClass(GetWorld(), ATrainingHubBuilder::StaticClass()))
+	{
+		GetWorld()->SpawnActor<ATrainingHubBuilder>();
 	}
 }
 

@@ -1,0 +1,62 @@
+{
+  "regions": [
+    {
+      "name": "A_Site_Duel",
+      "label": "A点包点",
+      "center": [-6.7, -23.5, 69.6],
+      "extent": [42.0, 38.0, 35.0],
+      "collections": ["Ascent_Art_A", "Ascent_Art_APathMid", "Ascent_Art_AtkPathA", "Ascent_Art_DefPathA", "Ascent_Gameplay", "Key A"]
+    },
+    {
+      "name": "B_Site_Duel",
+      "label": "B点包点",
+      "center": [-94.0, 0.2, 65.4],
+      "extent": [50.0, 35.0, 35.0],
+      "collections": ["Ascent_Art_B", "Ascent_Art_AtkPathB", "Ascent_Art_DefPathB", "Ascent_Gameplay", "Key B"]
+    },
+    {
+      "name": "Mid_Duel",
+      "label": "中路",
+      "center": [-44.0, -26.0, 68.0],
+      "extent": [45.0, 45.0, 38.0],
+      "collections": ["Ascent_Art_Mid", "Ascent_Art_APathMid", "Ascent_Art_DefPathA", "Ascent_Art_DefPathB", "Ascent_Art_Atk", "Ascent_Art_AtkPathA", "Ascent_Art_AtkPathB"]
+    },
+    {
+      "name": "A_Main_Entry",
+      "label": "A大入口",
+      "center": [-7.0, -38.0, 70.0],
+      "extent": [42.0, 32.0, 36.0],
+      "collections": ["Ascent_Art_A", "Ascent_Art_AtkPathA", "Ascent_Art_APathMid", "Ascent_Art_Atk", "Key A"]
+    },
+    {
+      "name": "B_Main_Entry",
+      "label": "B大入口",
+      "center": [-93.0, -25.0, 68.0],
+      "extent": [42.0, 36.0, 36.0],
+      "collections": ["Ascent_Art_B", "Ascent_Art_AtkPathB", "Ascent_Art_DefPathB", "Key B"]
+    },
+    {
+      "name": "Market_Door_Duel",
+      "label": "市场/门口",
+      "center": [-86.0, -24.0, 68.0],
+      "extent": [45.0, 42.0, 38.0],
+      "collections": ["Ascent_Art_AtkPathB", "Ascent_Art_DefPathB", "Ascent_Art_B", "Ascent_Art_Mid", "Door B", "Key B"]
+    }
+  ],
+  "exclude_name_patterns": ["SkyDome", "Waterfall", "LightShaft", "SimpleCircle"],
+  "min_center_z": 40.0,
+  "export_scale": 100.0,
+  "simplify": {
+    "decimate_ratio": 0.5,
+    "min_polys_for_decimate": 64,
+    "skip_collections": [
+      "Ascent_Art_Vista",
+      "Ascent_Art_VistaA",
+      "Ascent_Art_VistaB",
+      "Ascent_Art_VistaAtk",
+      "Ascent_Art_VistaDef",
+      "Ascent_Art_Env_VFX"
+    ],
+    "skip_name_patterns": ["Tree_", "wireShape", "LightShaft", "Foliage", "Grass"]
+  }
+}

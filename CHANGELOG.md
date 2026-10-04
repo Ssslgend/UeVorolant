@@ -35,6 +35,25 @@
 - **npm install 完成** `2026-05-19 21:10`
   - 66 packages, 2 moderate vulnerabilities (不影响)
 
+### ✅ Phase 0.9 - 开发工具链
+- **Git 初始化 + 开发文档系统** `2026-05-19 21:40`
+  - .gitignore 配置完成 (排除 .uasset/.fbx 大文件)
+  - CHANGELOG.md, DEV_STATUS.md 创建
+  - dev_commit.ps1/bat 一键提交脚本
+  - 初始提交完成 (68 files, 5830 insertions)
+
+### ✅ Training + Ascent simplified map toolchain
+- **C++ 练枪模块扩展** `2026-07`
+  - TrainingHubBuilder, TrainingHUD, TrainingStatsTests
+  - EnemyTarget 爆头判定/尺寸 (StandHalfHeight=91.5, EyeHeight=160)
+- **Blender 区域导出/减面** `2026-07`
+  - blender_scene_inventory / export_regions / simplify_regions
+  - 六对枪区域 FBX 导出与 UE 导入验证脚本
+- **Blender 5.1 + MCP 简化地图** `2026-10-04`
+  - build_simplified_ascent / add_gameplay_headshot_lines
+  - 爆头线与关键掩体按原模型 topZ 对齐
+  - MCP 端口 9877（9876 被 ddns-go 占用）
+
 ---
 
 ## 待完成 (TODO)
