@@ -75,11 +75,16 @@ public:
     AEnemyTarget* GetCurrentTarget() const { return Bot; }
     const FTrainerHitFeedback& GetHitFeedback() const { return HitFeedback; }
     float GetPlayerHurtAlpha() const { return PlayerHurtAlpha; }
+    float GetHoldReactionRemainingMs() const;
+    bool IsHoldReactionStarted() const { return HoldExposureAt>=0; }
+    float GetHoldReactionElapsedMs() const;
     FVector GetCurrentPeekFloor() const { return Selection.IsValidIndex(SelectedPoint)?Points[Selection[SelectedPoint]].PeekFloor:FVector::ZeroVector; }
     FVector GetCurrentPlayerFloor() const { return Selection.IsValidIndex(SelectedPoint)?Points[Selection[SelectedPoint]].PlayerFloor:FVector::ZeroVector; }
     bool HasFlashFired() const { return bFlashFired; }
     static FString ModeName(int32 Index);
     static float ReactionBudget(int32 Difficulty);
+    static float ReactionBudgetForMode(int32 ModeIndex, int32 Difficulty);
+    static bool IsHoldDeadlineExpired(double VisibleSeconds);
     static float FlashStrength(float FacingDot, float Distance, bool Visible);
     static bool IsRoundComplete(int32 Kills, int32 Required);
     static bool IsShotScorable(int32 ModeIndex, bool FlashFired);
@@ -122,6 +127,7 @@ private:
     FString Status;
     FTrainerHitFeedback HitFeedback;
     float PlayerHurtAlpha = 0;
+    double HoldExposureAt = -1, PauseWorldAt = 0;
     void LoadPoints();
     bool PlacePlayer(const FVector& Floor, const FVector& Facing);
     bool Grounded(const FVector& Floor) const;
@@ -131,4 +137,6 @@ private:
     void Finish(bool Won, const FString& Reason);
     void StoreRecord(bool Won);
     void Shot(const FVector& Start, const FVector& End, const FVector& Impact, bool HitWorld);
+    bool CanSeeHoldTarget() const;
+    void EnemyShot(bool Lethal);
 };

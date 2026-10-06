@@ -22,6 +22,15 @@ void ATrainingHUD::DrawHUD()
     DrawText(FString::Printf(TEXT("生命 %d    击杀 %d / %d    射击 %d    命中 %d    爆头 %d"),S->Health,S->Kills,S->RequiredKills,S->Shots,S->Hits,S->Headshots),FLinearColor::White,30,54,nullptr,1.f);
     DrawText(FString::Printf(TEXT("命中 %.1f%%    爆头 %.1f%%    最近 %.0fms    最佳 %.0fms"),S->Shots?100.f*S->Hits/S->Shots:0,S->Hits?100.f*S->Headshots/S->Hits:0,S->LastReactionMs,S->BestReactionMs),FLinearColor(.75,.82,.87),30,83,nullptr,.9f);
     DrawText(FString::Printf(TEXT("开枪速度 %.0f cm/s  ·  停稳 %.0f%%  ·  瞄准偏差 %.2f°"),S->LastShotSpeed,S->Shots?100.f*S->StoppedShots/S->Shots:0,S->AverageAimErrorDegrees),FLinearColor(.68,.79,.85),30,108,nullptr,.85f);
+    if(S->Mode==ECombatPracticeMode::Hold&&!S->IsFinished())
+    {
+        const float Remaining=S->GetHoldReactionRemainingMs();
+        const FLinearColor Color=Remaining>80?FLinearColor(.18f,.96f,.85f):FLinearColor(1,.3f,.25f);
+        DrawRect(FLinearColor(.008f,.015f,.025f,.88f),18,136,340,54);
+        DrawText(S->IsHoldReactionStarted()?FString::Printf(TEXT("架枪时限 200ms · 剩余 %.0fms"),Remaining):TEXT("架枪时限 200ms · 等待假人露出"),Color,30,145,nullptr,.95f);
+        DrawRect(FLinearColor(.12f,.16f,.20f),30,174,316,5);
+        DrawRect(Color,30,174,316*Remaining/200.f,5);
+    }
     DrawRect(FLinearColor(.008,.015,.025,.85),18,Canvas->ClipY-90,Canvas->ClipX-36,70);
     DrawText(S->GetStatus(),S->IsFinished()?(S->bWon?FLinearColor::Green:FLinearColor(1,.35,.35)):FLinearColor::White,30,Canvas->ClipY-80,nullptr,1.05f);
     DrawText(TEXT("WASD 移动 | Shift 静步 | Ctrl 蹲 | R 重练 | N 下一点 | Esc 暂停 | F5/F6/F7 个人点位"),FLinearColor(.65,.75,.81),30,Canvas->ClipY-48,nullptr,.85f);

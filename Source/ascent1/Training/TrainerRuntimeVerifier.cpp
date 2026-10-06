@@ -5,6 +5,7 @@
 #include "Core/AscPlayerController.h"
 #include "Player/AscCharacter.h"
 #include "Player/AscWeaponComponent.h"
+#include "Player/TrainerShotTracer.h"
 #include "Target/EnemyTarget.h"
 #include "Target/TrainerImpactEffect.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -565,6 +566,10 @@ void ATrainerRuntimeVerifier::Tick(float DeltaSeconds)
             FVector RayStart,RayEnd;Weapon->GetLastShotRay(RayStart,RayEnd);
             const bool EndBeforeTarget=FVector::Dist(RayStart,RayEnd)<FVector::Dist(RayStart,Bot->GetHeadCenter())-5;
             Record(TEXT("NoFeedbackForOccludedShot"),Session->GetHitFeedback().HitRemaining==0&&Session->GetHitFeedback().KillRemaining==0,TEXT("Wall-blocked shot creates no confirmed hit or kill cue."));
+            bool TracerStopped=false;
+            for(TActorIterator<ATrainerShotTracer> It(GetWorld());It;++It)
+                if(It->ActorHasTag(TEXT("PlayerShotTracer"))&&FVector::Dist(It->GetTraceEnd(),RayEnd)<1)TracerStopped=true;
+            Record(TEXT("TracerStopsAtWall"),TracerStopped&&EndBeforeTarget,TEXT("Visible beam ends at the same first wall as the hitscan ray."));
             Record(TEXT("PreAimWorldOcclusion"),Fired&&Session->Kills==0&&Session->Hits==0&&EndBeforeTarget,
                 FString::Printf(TEXT("fired=%d shots=%d hits=%d kills=%d stoppedRay=%d %s"),Fired,Session->Shots,Session->Hits,Session->Kills,EndBeforeTarget,*Blocker));
         }
@@ -613,6 +618,16 @@ void ATrainerRuntimeVerifier::Tick(float DeltaSeconds)
                 int32 Effects=0;for(TActorIterator<ATrainerImpactEffect> It(GetWorld());It;++It)++Effects;
                 Record(TEXT("BodyHitFeedback"),Session->Hits==1&&Feedback.Region==EHitRegion::Body&&Feedback.Damage==40&&Feedback.RemainingHealth==60&&Feedback.HitRemaining>0&&Flash&&Flash->K2_GetScalarParameterValue(TEXT("ImpactFlash"))>0&&Effects>0,
                     FString::Printf(TEXT("hits=%d damage=%.0f remainingHealth=%.0f flash=%.2f worldEffects=%d"),Session->Hits,Feedback.Damage,Feedback.RemainingHealth,Flash?Flash->K2_GetScalarParameterValue(TEXT("ImpactFlash")):0,Effects));
+                auto Receiver=FindObject<UStaticMeshComponent>(Player,TEXT("RifleReceiver"));
+                auto RightHand=FindObject<UStaticMeshComponent>(Player,TEXT("RightGlove"));
+                auto LeftHand=FindObject<UStaticMeshComponent>(Player,TEXT("LeftGlove"));
+                auto MuzzleFlash=FindObject<UStaticMeshComponent>(Player,TEXT("RifleMuzzleFlash"));
+                Record(TEXT("VisibleRifleAndHands"),Receiver&&RightHand&&LeftHand&&Receiver->IsVisible()&&RightHand->IsVisible()&&LeftHand->IsVisible()&&Receiver->bOnlyOwnerSee&&Receiver->GetCollisionEnabled()==ECollisionEnabled::NoCollision,TEXT("Camera-attached receiver and both hands are visible and do not collide."));
+                Record(TEXT("ShotMuzzleFlash"),MuzzleFlash&&MuzzleFlash->IsVisible(),TEXT("Real weapon shot enables the rifle muzzle flash."));
+                bool TracerHit=false;
+                for(TActorIterator<ATrainerShotTracer> It(GetWorld());It;++It)
+                    if(It->ActorHasTag(TEXT("PlayerShotTracer"))&&FVector::Dist(It->GetTraceEnd(),Feedback.WorldImpact)<1&&FVector::Dist(It->GetTraceStart(),Player->GetGunMuzzleLocation())<1)TracerHit=true;
+                Record(TEXT("TracerMuzzleToBodyImpact"),TracerHit,TEXT("Real body shot beam starts at rifle muzzle and ends at resolved body impact."));
                 FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(),TEXT("TrainerVerification/body_hit_feedback.png")),false,false);
                 BodyPreviewFrame=Frame;
             }
@@ -724,8 +739,72 @@ void ATrainerRuntimeVerifier::Tick(float DeltaSeconds)
         {
             Record(TEXT("HoldWaitRevealAndHeadshot"),bHoldMoved&&Session->bWon&&Session->Headshots==1,
                 FString::Printf(TEXT("actualBotMoved=%d waitedWallSeconds=%.3f won=%d headshots=%d status=%s"),bHoldMoved,Age,Session->bWon,Session->Headshots,*Session->GetStatus()));
-            BeginFlash(false);
+            Record(TEXT("HoldHeadshotWithin200ms"),Session->bWon&&Session->LastReactionMs<200,FString::Printf(TEXT("reactionMs=%.3f"),Session->LastReactionMs));
+            if(!StartMode(2)){Finish(TEXT("Hold deadline fixture could not start"));return;}
+            bHoldHiddenChecked=false;Enter(EStage::HoldExposure);
         }
+    }
+    else if(Stage==EStage::HoldExposure)
+    {
+        if(auto Bot=Session->GetCurrentTarget())Controller->SetControlRotation((Bot->GetHeadCenter()-Player->GetCameraLocation()).Rotation());
+        if(!bHoldHiddenChecked)
+        {
+            Record(TEXT("HoldHiddenNoCountdown"),!Session->IsHoldReactionStarted()&&Session->GetHoldReactionRemainingMs()==200,TEXT("Countdown waits for exposed shootable geometry."));
+            bHoldHiddenChecked=true;
+        }
+        if(Session->IsHoldReactionStarted()&&Session->GetHoldReactionElapsedMs()>=40)
+        {
+            if(AimedFrame<0)
+            {
+                Record(TEXT("HoldCountdownStartsOnExposure"),!Session->IsFinished()&&Session->GetHoldReactionRemainingMs()>0&&Session->GetHoldReactionRemainingMs()<200,FString::Printf(TEXT("remainingMs=%.3f"),Session->GetHoldReactionRemainingMs()));
+                FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(),TEXT("TrainerVerification/hold_countdown.png")),false,false);
+                AimedFrame=Frame;return;
+            }
+            if(Frame<=AimedFrame+1)return;
+            Controller->ToggleMenu();PausedHoldRemaining=Session->GetHoldReactionRemainingMs();Enter(EStage::HoldVisiblePause);
+        }
+        else if(Age>10){Record(TEXT("HoldCountdownStartsOnExposure"),false,TEXT("No exposure within fixture timeout"));BeginFlash(false);}
+    }
+    else if(Stage==EStage::HoldVisiblePause)
+    {
+        if(Age>=1.2)
+        {
+            Record(TEXT("HoldVisiblePausePreservesDeadline"),FMath::Abs(Session->GetHoldReactionRemainingMs()-PausedHoldRemaining)<.1f&&!Session->IsFinished(),FString::Printf(TEXT("pauseWallSeconds=%.3f beforeMs=%.3f afterMs=%.3f"),Age,PausedHoldRemaining,Session->GetHoldReactionRemainingMs()));
+            Controller->ToggleMenu();Enter(EStage::HoldTimeout);
+        }
+    }
+    else if(Stage==EStage::HoldTimeout)
+    {
+        if(Session->IsFinished()||Age>2)
+        {
+            if(AimedFrame<0)
+            {
+                Record(TEXT("Hold200msEnemyKillsPlayer"),Session->IsFinished()&&!Session->bWon&&Session->Health==0&&Session->Shots==0&&Session->GetHoldReactionElapsedMs()>=199.9f&&Session->GetHoldReactionElapsedMs()<250,FString::Printf(TEXT("elapsedMs=%.3f health=%d won=%d"),Session->GetHoldReactionElapsedMs(),Session->Health,Session->bWon));
+                bool EnemyTracer=false;for(TActorIterator<ATrainerShotTracer> It(GetWorld());It;++It)EnemyTracer|=It->ActorHasTag(TEXT("EnemyShotTracer"));
+                Record(TEXT("HoldEnemyTracerAndHurt"),EnemyTracer&&Session->GetPlayerHurtAlpha()>0,TEXT("Lethal enemy shot has a visible tracer and red player hurt cue."));
+                FScreenshotRequest::RequestScreenshot(FPaths::Combine(FPaths::ProjectSavedDir(),TEXT("TrainerVerification/hold_deadline.png")),false,false);
+                AimedFrame=Frame;return;
+            }
+            if(Frame<=AimedFrame+1)return;
+            if(!StartMode(2)){Finish(TEXT("Late hold shot fixture could not start"));return;}
+            Enter(EStage::HoldLateShot);
+        }
+    }
+    else if(Stage==EStage::HoldLateShot)
+    {
+        if(auto Bot=Session->GetCurrentTarget())Controller->SetControlRotation((Bot->GetHeadCenter()-Player->GetCameraLocation()).Rotation());
+        if(Session->IsHoldReactionStarted())
+        {
+            // Explicit frame-order fixture: advance the gameplay clock without session tick.
+            Session->SetActorTickEnabled(false);
+            if(Session->GetHoldReactionElapsedMs()>=215)
+            {
+                const bool Fired=Weapon->FireOnceNow();Session->SetActorTickEnabled(true);
+                Record(TEXT("HoldLateShotCannotBeatTickOrder"),Fired&&Session->IsFinished()&&!Session->bWon&&Session->Health==0&&Session->Hits==0&&Session->Kills==0,TEXT("Shot after 215ms loses even when session deadline tick has not run."));
+                BeginFlash(false);
+            }
+        }
+        if(Age>10){Session->SetActorTickEnabled(true);Record(TEXT("HoldLateShotCannotBeatTickOrder"),false,TEXT("Late shot fixture timeout"));BeginFlash(false);}
     }
     else if(Stage==EStage::FlashFace || Stage==EStage::FlashBack)
     {

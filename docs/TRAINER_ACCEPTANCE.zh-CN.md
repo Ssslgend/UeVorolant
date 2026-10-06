@@ -1,13 +1,15 @@
 # 交付验收：亚海悬城对枪训练
 
-2026-10-06，UE 5.3，Windows Development 独立程序。参考 SpikeAtlas 的六种训练模式、设置和记录功能，使用用户提供的原地图制作。
+2026-10-07，UE 5.3，Windows Development 独立程序。参考 SpikeAtlas 的六种训练模式、设置和记录功能，使用用户提供的原地图制作。
 
 | 要求 | 当前证据 |
 |---|---|
 | 简化原地图，保留战斗地形、主要掩体及原有墙面/箱体高度参照 | `Saved/AscentCombatSimple/simplification_report.json`：643 个部件、289560 三角形，面数减少 92.17%；源文件 SHA256 未变化 |
 | 必要墙体与包点障碍物 | 从原地图补回 142 个部件，包括中路坡道侧墙、庭院箱体、卷帘门、B 船屋内外墙及包点箱体/遮挡物；按实际边界覆盖范围保留必要大墙 |
 | 几何与坐标保真 | `verification_report.json`：643 个单用户网格、22403 个原始表面采样、FBX 往返尺寸误差最大 0.0000153 米；`ue_cover_update_report.json`：原关卡 6 个 Actor 保留，145 个材质槽，复杂双面碰撞通过 |
-| 六种模式 | 最新独立 EXE 的 `packaged_hit_feedback_runtime_report.json`：探索、预瞄、架枪、背闪、防守五波、实战三目标通过 |
+| 六种模式 | 最新独立 EXE 的 `packaged_hold_rifle_runtime_report.json`：探索、预瞄、架枪、背闪、防守五波、实战三目标通过 |
+| 架枪固定 200 毫秒 | 所有难度固定时限；首次可射击部位露出才计时；剩余时间及进度条可见；及时爆头获胜，超时生命归零，暂停不消耗时限；延迟射击不能利用 Tick 顺序判胜 |
+| 第一人称枪模与弹道 | 原创简化步枪、双手、枪口闪光、枪体后坐与行走起伏；模型与弹道无碰撞；弹道起点为枪口，终点与真实身体/墙体命中一致，敌人开枪有弹道和受伤红边 |
 | 原地图内移动 | 上一轮地图恢复版的 `packaged_cover_hit_runtime_report.json`：七条路线、740 个检查点，使用 CharacterMovement 输入验证，跨目标不传送；本轮地图不变，复查探索和回合结束行走，未重复长路线 |
 | 敌人碰撞与多角度防守 | 七个守点各有至少两条通过 UE 胶囊和视线检查的路线；实际五波从不同方向出枪，全部完成 |
 | 命中、爆头、反应、胜负和暂停 | 最新报告：手臂一枪加腿部两枪共 108 伤害击杀、躯干三枪、一枪爆头、墙体遮挡、重练/下一点、暂停和历史磁盘重新加载均通过 |
@@ -21,11 +23,11 @@
 | 个人点位 | 原生 F5/F6/F7 采集脚下地面并保存；完全退出后重新启动，菜单出现“个人点位 1”，选择后实际进入训练。截图 `packaged_personal_saved.png`、`packaged_personal_restart.png`、`packaged_personal_play.png`；另有缺失采集拒绝及新会话读取检查 |
 | 快捷键与复杂地形 | 移除本项目 F5/F6/F7 的 UE 默认调试绑定，F5 采集保持正常着色；采集使用真实地面命中位置，避免胶囊离地间隙造成保存拒绝。原生快捷键已验证 |
 | 中文界面、输入和小地图 | `packaged_menu.png`、`packaged_fire.png`、`packaged_settings_restart.png`、`packaged_history_restart.png`；开始、鼠标开火、Esc、退出、设置按钮均实际操作 |
-| 编译、测试、打包 | `TrainerHitFeedbackFinalPackaging.log`：BUILD SUCCESSFUL / ExitCode 0；`HitFeedbackFullGreen/index.json`：22 项成功、0 失败；`packaged_hit_feedback_runtime_report.json`：91 项成功、0 失败 |
+| 编译、测试、打包 | `TrainerHoldRifleFinalPackaging.log`：BUILD SUCCESSFUL / ExitCode 0；`HoldRifleFinalGreen/index.json`：25 项成功、0 失败；`packaged_hold_rifle_runtime_report.json`：104 项成功、0 失败 |
 | 回合结束后的行走 | 最新 `CompletedRoundStillWalks`：一枪爆头完成本轮后，实际行走 62.45 厘米，保持 Walking；枪数保持 1，结束后不再射击或计分 |
 | 敌人头部 | 头部直径 18 厘米，与爆头判定一致；添加连接身体的颈部；自动化检查站姿和蹲姿的头部、颈部连接，独立程序 `LiveEnemyHeadSize` 和爆头击杀通过，截图 `packaged_enemy_head_preview.png` |
 
-证据目录：`Saved/TrainerVerification`。最新打包程序目录：`Saved/TrainerBuild_HitFeedback/Windows`，入口为该目录的 `ascent1.exe`；旧包保留。完整中文操作说明：`docs/TRAINER_README.zh-CN.md`，随程序附带。
+证据目录：`Saved/TrainerVerification`。最新打包程序目录：`Saved/TrainerBuild_HoldRifle/Windows`，入口为该目录的 `ascent1.exe`；旧包保留。完整中文操作说明：`docs/TRAINER_README.zh-CN.md`，随程序附带。
 
 初版独立程序验证于 2026-10-06 14:55 完成：65 项全部通过，耗时 121.52 秒。躯干伤害检查从独立的新回合开始，避免消耗前一个探身检查的反应时间。初版游戏 EXE 的 SHA256：`7a023b2c20616b2c7a4c8bedd53cbd5d16ab3e94f9f2168a68c649c1e0684f86`。
 
@@ -59,4 +61,12 @@
 
 反馈风格参考 [Riot 命中判定说明](https://playvalorant.com/en-gb/news/dev/the-state-of-hit-registration/) 和 [1.07 更新说明](https://playvalorant.com/en-gb/news/game-updates/valorant-patch-notes-1-07/)。音效和徽记为本项目制作，未使用原游戏素材。
 
-原始文件：`H:\baiduyun\亚海悬城 - 副本.blend`。再次读取的 SHA256：`fff802f03769b19136bcfdf67b2aa147e10d3adafc0fe8d53c39d0ffae2a5b04`。旧地图和用户已有的工程存档保留。
+2026-10-07 架枪与持枪版验收完成。用户确认“0.2ms”指 0.2 秒，即 200 毫秒。架枪从假人第一次露出可被射击的部位开始，所有难度的截止时间固定 200 毫秒；暂停冻结倒计时。倒计时不会因掩体遮挡重新开始；完全被掩体挡住时不穿墙击杀玩家，重新露出后仍使用原截止时间。超时检查同时进入射击处理，避免同一帧中开枪先于敌人 Tick 而误判获胜。
+
+先用 `HoldRifleRed/index.json` 复现旧架枪时限 650/400/250 毫秒、无枪模、无可见弹道。新增 77 厘米简化步枪组件和持枪双手，枪口闪光、枪体后坐、轻微行走起伏；全部无碰撞、仅所有者可见。使用短生命周期视觉弹道显示实际命中，枪口靠墙时裁剪显示起点，保留原准星射线伤害规则。`Tools/ue_setup_rifle_material.py` 可重新生成独立枪模材质，未修改地图与光照。
+
+最终 25 项引擎自动化、104 项根目录 EXE 启动的原生检查通过，独立程序验证耗时 31.79 秒。首次架枪爆头反应 7.909 毫秒获胜；暂停 1.204 秒前后均剩余 73.886 毫秒。截止后下一次游戏帧在 216.569 毫秒触发敌人开枪，玩家生命归零；另一个明确禁用会话 Tick 的测试在 215 毫秒后射击，仍判负且不增加命中、击杀。14 处必要墙体/掩体碰撞和探索/回合结束实际行走继续通过；本轮未修改地图或重复七条长路线。
+
+最终截图已查看：`packaged_hold_countdown.png` 显示 200 毫秒预算及剩余 158 毫秒；`packaged_hold_deadline.png` 显示生命 0、受伤红边和失败提示；`packaged_hold_rifle_body_hit.png` 显示枪模、双手、枪口效果和真实身体命中弹道。证据另有 `HoldRifleFinalGreen/index.json`、`packaged_hold_rifle_runtime_report.json`、`hold_rifle_user_data_copy.json`、`TrainerHoldRifleFinalPackaging.log`、`TrainerHoldRifleFinalRuntime.log`。最终游戏 EXE SHA256：`5e743277cae94b5f031d7d2a0565998599e3a00d71019d82d8c816199363cd71`。
+
+原始文件：`H:\baiduyun\亚海悬城 - 副本.blend`。此前读取的 SHA256：`fff802f03769b19136bcfdf67b2aa147e10d3adafc0fe8d53c39d0ffae2a5b04`。旧地图和用户已有的工程存档保留。

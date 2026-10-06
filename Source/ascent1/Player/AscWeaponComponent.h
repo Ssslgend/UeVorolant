@@ -55,6 +55,7 @@ public:
 
 	/** Last ray traced by this weapon. */
 	void GetLastShotRay(FVector& OutStart, FVector& OutEnd) const { OutStart = LastShotStart; OutEnd = LastShotEnd; }
+    void SetResolvedShotImpact(const FVector& Point,AActor* Target) { LastShotEnd=Point;ResolvedShotTarget=Target; }
 
 	FOnWeaponShot OnWeaponShot;
 
@@ -102,6 +103,7 @@ protected:
 	FVector LastShotStart;
 	FVector LastShotEnd;
     UPROPERTY() class USoundBase* ShotSound = nullptr;
+    UPROPERTY() AActor* ResolvedShotTarget = nullptr;
 
 	virtual void PostInitProperties() override;
 

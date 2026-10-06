@@ -25,6 +25,7 @@ AAscCharacter::AAscCharacter()
 	Camera->bUsePawnControlRotation = true;
 
 	WeaponComponent = CreateDefaultSubobject<UAscWeaponComponent>(TEXT("WeaponComponent"));
+    BuildViewModel();
 
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->MaxAcceleration = 100000.0f;
@@ -66,6 +67,7 @@ void AAscCharacter::BeginPlay()
 void AAscCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+    TickViewModel(DeltaTime);
 
 	float TargetSpeed = CurrentMoveSpeed;
 

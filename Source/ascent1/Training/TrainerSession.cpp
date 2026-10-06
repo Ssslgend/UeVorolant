@@ -5,6 +5,7 @@
 #include "Player/AscWeaponComponent.h"
 #include "Target/EnemyTarget.h"
 #include "Target/TrainerImpactEffect.h"
+#include "Player/TrainerShotTracer.h"
 #include "Core/AscGameState.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -42,6 +43,39 @@ FString ATrainerSession::ModeName(int32 I)
     return Names[FMath::Clamp(I,0,5)];
 }
 float ATrainerSession::ReactionBudget(int32 D) { return D==0 ? 650.f : D==2 ? 250.f : 400.f; }
+float ATrainerSession::ReactionBudgetForMode(int32 M,int32 D) { return M==2?200.f:ReactionBudget(D); }
+bool ATrainerSession::IsHoldDeadlineExpired(double VisibleSeconds) { return VisibleSeconds>=.2-1.e-6; }
+float ATrainerSession::GetHoldReactionElapsedMs() const
+{
+    if(HoldExposureAt<0 || !GetWorld())return 0;
+    const double Now=bPaused?PauseWorldAt:GetWorld()->GetTimeSeconds();
+    return FMath::Max(0.f,static_cast<float>((Now-HoldExposureAt)*1000));
+}
+float ATrainerSession::GetHoldReactionRemainingMs() const { return FMath::Max(0.f,200.f-GetHoldReactionElapsedMs()); }
+bool ATrainerSession::CanSeeHoldTarget() const
+{
+    if(!Bot || Bot->IsHidden() || !Player)return false;
+    const FVector Eye=Player->GetCameraLocation();
+    if(ClearSight(Eye,Bot->GetHeadCenter()) || ClearSight(Eye,Bot->GetTorsoTarget()))return true;
+    for(const TCHAR* Name:{TEXT("Limb0"),TEXT("Limb1"),TEXT("Limb2"),TEXT("Limb3")})
+        if(auto Part=FindObject<UStaticMeshComponent>(Bot,Name))if(ClearSight(Eye,Part->GetComponentLocation()))return true;
+    return false;
+}
+void ATrainerSession::EnemyShot(bool Lethal)
+{
+    if(!Bot || !Player)return;
+    if(auto Tracer=GetWorld()->SpawnActor<ATrainerShotTracer>())Tracer->Initialize(Bot->GetEyeLocation(),Player->GetCameraLocation(),true);
+    if(auto Sound=LoadObject<USoundBase>(nullptr,TEXT("/Game/CombatTraining/Audio/TrainingShot.TrainingShot")))UGameplayStatics::PlaySound2D(this,Sound,.8f);
+    if(auto Sound=LoadObject<USoundBase>(nullptr,TEXT("/Game/CombatTraining/Audio/TrainingHurt.TrainingHurt")))UGameplayStatics::PlaySound2D(this,Sound,.7f);
+    PlayerHurtAlpha=1.f;
+    if(Lethal)
+    {
+        Health=0;
+        UE_LOG(LogTemp,Display,TEXT("[TrainerSession] HoldDeadline elapsedMs=%.3f budgetMs=200"),GetHoldReactionElapsedMs());
+        Finish(false,TEXT("超过 200ms 未击杀，假人开枪！按 R 重练 / N 下一点"));
+    }
+    else Health=FMath::Max(0,Health-40);
+}
 float ATrainerSession::FlashStrength(float Dot, float Distance, bool Visible)
 {
     if (!Visible || Distance>=3500.f) return 0;
@@ -122,6 +156,7 @@ bool ATrainerSession::Start(int32 M,const FString& R,int32 D,int32 Index)
     Shots=Hits=Headshots=Kills=0; Health=100; Reactions.Reset(); LastReactionMs=BestReactionMs=0; Elapsed=FlashAlpha=FlashRemaining=0;
     LastShotSpeed=AverageAimErrorDegrees=0;StoppedShots=AimSamples=0;LastDefenseApproach=-1;
     HitFeedback=FTrainerHitFeedback();PlayerHurtAlpha=0;
+    HoldExposureAt=-1;
     bRunning=true; bFinished=bPaused=bWon=false; RequiredKills=Mode==ECombatPracticeMode::Explore?0:Mode==ECombatPracticeMode::Defense?5:Mode==ECombatPracticeMode::Combat?3:1;
     const auto& P=Points[Selection[SelectedPoint]];
     const bool Hold=Mode==ECombatPracticeMode::Hold || Mode==ECombatPracticeMode::Defense;
@@ -183,7 +218,7 @@ void ATrainerSession::SpawnWave()
     Bot->SetGroundClearance(3.f);
     Bot->ConfigureHitVolumes(Bot->GetHeadRadius(),Mode==ECombatPracticeMode::Combat && FMath::RandBool()?112.f:160.f);
     if(Mode==ECombatPracticeMode::Flash || Moving)Bot->SetActorHiddenInGame(true);
-    WaveElapsed=0; LosSince=BotLastShot=-1; BotHealth=100; BotRevealDelay=FMath::FRandRange(0.8f,2.8f); bFlashFired=false;
+    WaveElapsed=0; LosSince=BotLastShot=-1;HoldExposureAt=-1; BotHealth=100; BotRevealDelay=FMath::FRandRange(0.8f,2.8f); bFlashFired=false;
     FlashSource=P.PeekFloor+FVector(0,0,180);
     bReactionRecorded=false;
     if(Mode==ECombatPracticeMode::Flash)
@@ -194,6 +229,7 @@ void ATrainerSession::SpawnWave()
         if(FlashActor){auto Mesh=FlashActor->GetStaticMeshComponent();Mesh->SetMobility(EComponentMobility::Movable);Mesh->SetStaticMesh(LoadObject<UStaticMesh>(nullptr,TEXT("/Engine/BasicShapes/Sphere.Sphere")));Mesh->SetMaterial(0,LoadObject<UMaterialInterface>(nullptr,TEXT("/Game/CombatTraining/Targets/M_TargetHead.M_TargetHead")));Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);FlashActor->SetActorScale3D(FVector(.2));}
     }
     Status=Mode==ECombatPracticeMode::Flash?TEXT("先探身；闪光提示后转身背闪，再击杀敌人"):
+        Mode==ECombatPracticeMode::Hold?TEXT("架住拐角：假人露出后须在 200ms 内击杀"):
         Moving?TEXT("架住拐角：敌人将随机探身，停稳后开枪"):TEXT("沿掩体探身，预瞄原墙面爆头高度，击杀敌人");
 }
 void ATrainerSession::Tick(float Dt)
@@ -237,6 +273,18 @@ void ATrainerSession::Tick(float Dt)
         else if(Hit.bBlockingHit && WaveElapsed>BotRevealDelay+3) {Finish(false,TEXT("探身路线受阻，按 N 切换点位"));return;}
     }
     const FVector Eye=Player->GetCameraLocation(); const bool Visible=ClearSight(Bot->GetEyeLocation(),Eye);
+    if(Mode==ECombatPracticeMode::Hold)
+    {
+        const bool Shootable=CanSeeHoldTarget();
+        if(Shootable && HoldExposureAt<0)
+        {
+            HoldExposureAt=GetWorld()->GetTimeSeconds();LosSince=Elapsed;
+            UE_LOG(LogTemp,Display,TEXT("[TrainerSession] HoldExposureStarted budgetMs=200 point=%s"),*GetPointName());
+        }
+        if(Shootable && IsHoldDeadlineExpired(GetHoldReactionElapsedMs()*.001)) {EnemyShot(true);return;}
+        if(Elapsed>60.f)Finish(false,TEXT("本轮超时，按 R 重练 / N 下一点"));
+        return;
+    }
     if(Mode==ECombatPracticeMode::Flash && !bFlashFired)
     {
         if(Visible && LosSince<0) {LosSince=Elapsed; Status=TEXT("闪光准备！转身避闪，再回头对枪");}
@@ -256,8 +304,7 @@ void ATrainerSession::Tick(float Dt)
         if(Mode!=ECombatPracticeMode::Combat) {Health=0;Finish(false,TEXT("敌人抢先开枪，按 R 重练 / N 下一点"));return;}
         if(BotLastShot<0 || Elapsed-BotLastShot>.25f)
         {
-            Health-=40;BotLastShot=Elapsed;PlayerHurtAlpha=1.f;
-            if(auto Sound=LoadObject<USoundBase>(nullptr,TEXT("/Game/CombatTraining/Audio/TrainingHurt.TrainingHurt")))UGameplayStatics::PlaySound2D(this,Sound,.7f);
+            EnemyShot(false);BotLastShot=Elapsed;
             if(Health<=0) {Health=0;Finish(false,TEXT("生命值耗尽，按 R 重练"));return;}
         }
     }
@@ -266,6 +313,15 @@ void ATrainerSession::Tick(float Dt)
 void ATrainerSession::Shot(const FVector& Start,const FVector& End,const FVector&,bool)
 {
     if(!bRunning || bFinished || bPaused) return; ++Shots;
+    if(Mode==ECombatPracticeMode::Hold && CanSeeHoldTarget())
+    {
+        if(HoldExposureAt<0){HoldExposureAt=GetWorld()->GetTimeSeconds();LosSince=Elapsed;}
+        if(IsHoldDeadlineExpired(GetHoldReactionElapsedMs()*.001))
+        {
+            if(auto GS=GetWorld()->GetGameState<AAscGameState>())GS->RecordShot(false,false,0);
+            EnemyShot(true);return;
+        }
+    }
     LastShotSpeed=Player?Player->GetVelocity().Size2D():0;if(LastShotSpeed<=50.f)++StoppedShots;
     bool Hit=false,Head=false; float Reaction=0;
     if(Bot && !Bot->IsHidden() && IsShotScorable(static_cast<int32>(Mode),bFlashFired))
@@ -276,7 +332,7 @@ void ATrainerSession::Shot(const FVector& Start,const FVector& End,const FVector
         if(!bReactionRecorded && ClearSight(Start,Bot->GetEyeLocation()))
         {
             if(LosSince<0)LosSince=Elapsed;
-            Reaction=FMath::Max(0.f,(Elapsed-LosSince)*1000.f);LastReactionMs=Reaction;Reactions.Add(Reaction);
+            Reaction=Mode==ECombatPracticeMode::Hold?GetHoldReactionElapsedMs():FMath::Max(0.f,(Elapsed-LosSince)*1000.f);LastReactionMs=Reaction;Reactions.Add(Reaction);
             BestReactionMs=Reactions.Num()==1?Reaction:FMath::Min(BestReactionMs,Reaction);bReactionRecorded=true;
         }
         float T=0; EHitRegion Region=EHitRegion::Miss;
@@ -289,6 +345,7 @@ void ATrainerSession::Shot(const FVector& Start,const FVector& End,const FVector
             BotHealth-=Damage;
             HitFeedback.Region=Region;HitFeedback.Damage=Damage;HitFeedback.RemainingHealth=FMath::Max(0.f,BotHealth);
             HitFeedback.WorldImpact=Start+Direction*T;HitFeedback.HitRemaining=.45f;HitFeedback.bKilled=BotHealth<=0;
+            Weapon->SetResolvedShotImpact(HitFeedback.WorldImpact,Bot);
             Bot->ShowHitReaction(Region);
             if(auto Effect=GetWorld()->SpawnActor<ATrainerImpactEffect>(HitFeedback.WorldImpact,FRotator::ZeroRotator))
             {
@@ -340,7 +397,13 @@ void ATrainerSession::Stop()
     if(Bot){Bot->Destroy();Bot=nullptr;}
     if(FlashActor){FlashActor->Destroy();FlashActor=nullptr;}
 }
-void ATrainerSession::Pause(bool P){bPaused=P;if(Weapon){Weapon->StopFiring();Weapon->SetFrozen(P||bFinished);}}
+void ATrainerSession::Pause(bool P)
+{
+    const double Now=GetWorld()?GetWorld()->GetTimeSeconds():0;
+    if(P&&!bPaused)PauseWorldAt=Now;
+    if(!P&&bPaused&&HoldExposureAt>=0)HoldExposureAt+=Now-PauseWorldAt;
+    bPaused=P;if(Weapon){Weapon->StopFiring();Weapon->SetFrozen(P||bFinished);}
+}
 void ATrainerSession::Restart(){Start(static_cast<int32>(Mode),SelectedRegion,Difficulty,SelectedPoint);}
 void ATrainerSession::Next(){Start(static_cast<int32>(Mode),SelectedRegion,Difficulty,Selection.IsEmpty()?0:(SelectedPoint+1)%Selection.Num());}
 FString ATrainerSession::GetPointName() const {return Selection.IsValidIndex(SelectedPoint)&&Points.IsValidIndex(Selection[SelectedPoint])?Points[Selection[SelectedPoint]].Name:TEXT("");}

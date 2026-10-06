@@ -45,6 +45,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Camera")
 	FVector GetCameraLocation() const;
+    FVector GetGunMuzzleLocation() const;
+    void PlayViewModelShot();
 
 	UFUNCTION(BlueprintCallable, Category = "Training")
 	void ResetDuel();
@@ -125,4 +127,11 @@ protected:
 	bool bIsFiring;
 	float MouseSensitivity = 0.4f;
 	void NormalizeMouseInput();
+    UPROPERTY() class USceneComponent* RifleRoot = nullptr;
+    UPROPERTY() class USceneComponent* RifleMuzzle = nullptr;
+    UPROPERTY() class UStaticMeshComponent* RifleMuzzleFlash = nullptr;
+    UPROPERTY() TArray<class UStaticMeshComponent*> ViewModelParts;
+    float ViewModelKick = 0, MuzzleFlashRemaining = 0, ViewModelBobTime = 0;
+    void BuildViewModel();
+    void TickViewModel(float DeltaTime);
 };

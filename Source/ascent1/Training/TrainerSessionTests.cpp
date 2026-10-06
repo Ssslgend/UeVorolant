@@ -5,6 +5,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Player/AscCharacter.h"
+#include "EngineUtils.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSessionRulesTest, "ascent1.Trainer.Session.Rules", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FSessionRulesTest::RunTest(const FString&)
@@ -107,6 +109,57 @@ bool FEnemyBodyHitFlashTest::RunTest(const FString&)
         Enemy->Tick(.2f);
         TestEqual(TEXT("Body flash decays rather than staying white"),Material->K2_GetScalarParameterValue(TEXT("ImpactFlash")),0.f);
     }
+    World->DestroyWorld(false);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHoldDeadlineRulesTest, "ascent1.Trainer.Session.HoldDeadline", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FHoldDeadlineRulesTest::RunTest(const FString&)
+{
+    for(int32 Difficulty=0;Difficulty<3;++Difficulty)
+        TestEqual(TEXT("Hold always gives exactly 200 milliseconds"),ATrainerSession::ReactionBudgetForMode(2,Difficulty),200.f);
+    TestEqual(TEXT("Preaim retains its difficulty budget"),ATrainerSession::ReactionBudgetForMode(1,0),650.f);
+    TestFalse(TEXT("A shot at 199ms is still in time"),ATrainerSession::IsHoldDeadlineExpired(.199));
+    TestTrue(TEXT("At 200ms the kill deadline has expired"),ATrainerSession::IsHoldDeadlineExpired(.200));
+    TestTrue(TEXT("A later shot must not override an enemy kill"),ATrainerSession::IsHoldDeadlineExpired(.205));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFirstPersonWeaponModelTest, "ascent1.Trainer.Player.HeldRifle", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FFirstPersonWeaponModelTest::RunTest(const FString&)
+{
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
+    auto Player=World->SpawnActor<AAscCharacter>();
+    if(!Player){World->DestroyWorld(false);return false;}
+    for(const TCHAR* Name:{TEXT("RifleReceiver"),TEXT("RifleBarrel"),TEXT("RifleMagazine"),TEXT("RightGlove"),TEXT("LeftGlove")})
+    {
+        auto Part=FindObject<UStaticMeshComponent>(Player,Name);
+        if(TestNotNull(FString::Printf(TEXT("Player visibly holds %s"),Name),Part))
+        {
+            TestTrue(TEXT("Part has real mesh geometry"),Part->GetStaticMesh()!=nullptr);
+            TestTrue(TEXT("Weapon and hands never block player movement or bullet traces"),Part->GetCollisionEnabled()==ECollisionEnabled::NoCollision);
+            TestTrue(TEXT("Only the owning player's camera sees the view model"),Part->bOnlyOwnerSee);
+        }
+    }
+    World->DestroyWorld(false);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWeaponTracerTest, "ascent1.Trainer.Player.ShotTracer", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FWeaponTracerTest::RunTest(const FString&)
+{
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false);
+    auto Player=World->SpawnActor<AAscCharacter>();
+    if(!Player){World->DestroyWorld(false);return false;}
+    auto Weapon=Player->FindComponentByClass<UAscWeaponComponent>();
+    TestTrue(TEXT("An actual weapon shot fires"),Weapon&&Weapon->FireOnceNow());
+    int32 Tracers=0;
+    for(TActorIterator<AActor> It(World);It;++It)
+        if(It->ActorHasTag(TEXT("PlayerShotTracer")))
+        {
+            ++Tracers;
+            auto Beam=FindObject<UStaticMeshComponent>(*It,TEXT("Beam"));
+            if(TestNotNull(TEXT("Shot has a real visible beam mesh"),Beam))
+                TestTrue(TEXT("Tracer cannot obstruct characters or later bullets"),Beam->GetCollisionEnabled()==ECollisionEnabled::NoCollision);
+        }
+    TestEqual(TEXT("Every fired player bullet creates one tracer"),Tracers,1);
     World->DestroyWorld(false);
     return true;
 }

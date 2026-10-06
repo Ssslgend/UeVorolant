@@ -5,6 +5,7 @@
 #include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "TrainerShotTracer.h"
 
 UAscWeaponComponent::UAscWeaponComponent()
 {
@@ -122,11 +123,22 @@ bool UAscWeaponComponent::PerformTrace()
 
 	LastShotStart = ViewLocation;
 	LastShotEnd = bHitWorld ? Hit.ImpactPoint : End;
+    ResolvedShotTarget=nullptr;
 
 	CurrentSpread = FMath::Min(MaxSpread, CurrentSpread + SpreadIncrement);
 
 	// Full ray (Start->End) plus the world impact so the arena can do analytic head tests.
 	OnWeaponShot.Broadcast(ViewLocation, End, LastShotEnd, bHitWorld);
+    if(auto Player=Cast<AAscCharacter>(Owner))
+    {
+        FVector Muzzle=Player->GetGunMuzzleLocation();
+        FCollisionQueryParams MuzzleQuery(SCENE_QUERY_STAT(TrainerMuzzle),true);MuzzleQuery.AddIgnoredActor(Owner);MuzzleQuery.AddIgnoredActor(ResolvedShotTarget);
+        FHitResult MuzzleCover;
+        if(World->LineTraceSingleByChannel(MuzzleCover,ViewLocation,Muzzle,ECC_Visibility,MuzzleQuery))Muzzle=ViewLocation;
+        if(auto Tracer=World->SpawnActor<ATrainerShotTracer>())Tracer->Initialize(Muzzle,LastShotEnd);
+        Player->PlayViewModelShot();
+    }
+    ResolvedShotTarget=nullptr;
     if(!ShotSound)ShotSound=LoadObject<USoundBase>(nullptr,TEXT("/Game/CombatTraining/Audio/TrainingShot.TrainingShot"));
     if(ShotSound)UGameplayStatics::PlaySound2D(this,ShotSound,.7f);
 	return true;

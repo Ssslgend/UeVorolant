@@ -26,7 +26,7 @@ private:
     {
         AwaitWorld, GroundAndExplore, ExploreWalk, PreAimOcclusion, PreAimWalk,
         LimbShots, BodyShots, HeadWin, PostRoundWalk, FeedbackFade, FailedRound, PauseHold, HoldWin, FlashFace, FlashBack,
-        Defense, CombatHurt, Combat, MapWalk, Persistence, Done
+        HoldExposure, HoldVisiblePause, HoldTimeout, HoldLateShot, Defense, CombatHurt, Combat, MapWalk, Persistence, Done
     };
     struct FFileSnapshot
     {
@@ -52,6 +52,8 @@ private:
     bool bAllGrounded = true;
     float FacingFlashAlpha = -1, BackFlashAlpha = -1;
     float SavedMaxWalkSpeed = 540;
+    float PausedHoldRemaining = 200;
+    bool bHoldHiddenChecked = false;
     FVector WalkStart, PauseBot, WaveBotStart, FlashSource, CombatAfterKill;
     TArray<FVector> DefensePositions;
     TArray<FVector> WalkWaypoints;

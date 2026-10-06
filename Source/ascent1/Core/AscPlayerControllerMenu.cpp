@@ -77,7 +77,7 @@ void AAscPlayerController::BuildMenu()
         auto Grid=SNew(SUniformGridPanel).SlotPadding(FMargin(0,0,8,8));
         for(int32 I=0;I<6;++I)Grid->AddSlot(I%3,I/3)[Button(ATrainerSession::ModeName(I),[this,I](){SelectedMode=I;BuildMenu();return FReply::Handled();},I==SelectedMode)];
         Content->AddSlot().AutoHeight()[Grid];
-        const TCHAR* Descriptions[]={TEXT("按真实路线自由走图，熟悉拐角和高低差。F5 记录玩家位置，F6 记录敌人位置，F7 保存个人点位。"),TEXT("从掩体后探身，利用原地图爆头高度参照预瞄敌人。暴露后敌人会按难度开枪。"),TEXT("你架住拐角，敌人随机延时探身。训练准星位置、反应和急停射击。"),TEXT("探身触发闪光提示；转身避闪，再回头击杀敌人。遮挡、距离和朝向决定致盲强度。"),TEXT("守住位置应对 5 波敌人；随机延时和可见的不同进攻角度。"),TEXT("连续击杀 3 个敌人。敌人可蹲姿探身，有 100 生命值；移动射击降低精准度。")};
+        const TCHAR* Descriptions[]={TEXT("按真实路线自由走图，熟悉拐角和高低差。F5 记录玩家位置，F6 记录敌人位置，F7 保存个人点位。"),TEXT("从掩体后探身，利用原地图爆头高度参照预瞄敌人。暴露后敌人会按难度开枪。"),TEXT("你架住拐角，假人随机探身。从首次露出可射击部位开始，须在 200ms 内击杀，否则假人开枪击杀你。"),TEXT("探身触发闪光提示；转身避闪，再回头击杀敌人。遮挡、距离和朝向决定致盲强度。"),TEXT("守住位置应对 5 波敌人；随机延时和可见的不同进攻角度。"),TEXT("连续击杀 3 个敌人。敌人可蹲姿探身，有 100 生命值；移动射击降低精准度。")};
         Content->AddSlot().AutoHeight().Padding(0,8,0,18)[Label(Descriptions[FMath::Clamp(SelectedMode,0,5)],14)];
         auto Regions=SNew(SHorizontalBox);const TCHAR* Codes[]={TEXT("All"),TEXT("A"),TEXT("Mid"),TEXT("B")};const TCHAR* Names[]={TEXT("全部区域"),TEXT("A 区"),TEXT("中路"),TEXT("B 区")};
         for(int I=0;I<4;++I){const FString Code=Codes[I];Regions->AddSlot().FillWidth(1).Padding(0,0,8,0)[Button(Names[I],[this,Code](){SelectedRegion=Code;SelectedPoint=0;BuildMenu();return FReply::Handled();},SelectedRegion==Code)];}
