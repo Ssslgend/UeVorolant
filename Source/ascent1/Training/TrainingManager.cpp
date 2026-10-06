@@ -34,14 +34,12 @@ void ATrainingManager::StartTraining(ETrainingMode Mode)
 		return;
 	}
 
-	switch (CurrentDifficulty)
-	{
-	case EDifficulty::Easy:   Arena->BotFireDelay = 0.5f;  break;
-	case EDifficulty::Normal: Arena->BotFireDelay = 0.25f; break;
-	case EDifficulty::Hard:   Arena->BotFireDelay = 0.15f; break;
-	}
+	// Bot delay now lives in Content/Data/trainer_settings.json (bot.delayMs); the
+	// difficulty enum only picks the spot list preset for the legacy manager path.
+	UE_LOG(LogTemp, Log, TEXT("TrainingManager: starting mode %d difficulty %d"),
+		static_cast<int32>(CurrentMode), static_cast<int32>(CurrentDifficulty));
 
-	Arena->LoadAndBuild(TEXT("prefire_spots.json"));
+	Arena->LoadAndBuild(TEXT("trainer_spots_v1.json"));
 }
 
 void ATrainingManager::StopTraining()

@@ -29,7 +29,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Training")
 	void RestartCurrentSpot();
 
-	int32 GetCurrentSpotIndex() const { return CurrentSpotIndex; }
+	int32 GetCurrentSpotIndex() const;
 
 protected:
 	UPROPERTY()

@@ -6,6 +6,10 @@
 #include "../Training/TrainingHubBuilder.h"
 #include "../UI/TrainingHUD.h"
 #include "Kismet/GameplayStatics.h"
+#include "Training/TrainerSession.h"
+#include "Training/TrainerRuntimeVerifier.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 
 AAscGameMode::AAscGameMode()
 {
@@ -13,47 +17,43 @@ AAscGameMode::AAscGameMode()
 	PlayerControllerClass = AAscPlayerController::StaticClass();
 	GameStateClass = AAscGameState::StaticClass();
 	HUDClass = ATrainingHUD::StaticClass();
-	SpotDataFilePath = TEXT("prefire_spots.json");
+	SpotDataFilePath = TEXT("trainer_spots_v1.json");
 }
 
 void AAscGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	Arena = Cast<APrefireArena>(UGameplayStatics::GetActorOfClass(GetWorld(), APrefireArena::StaticClass()));
-	if (!Arena)
-	{
-		Arena = GetWorld()->SpawnActor<APrefireArena>();
-	}
-
-	if (!UGameplayStatics::GetActorOfClass(GetWorld(), ATrainingHubBuilder::StaticClass()))
-	{
-		GetWorld()->SpawnActor<ATrainingHubBuilder>();
-	}
+    GetWorld()->SpawnActor<ATrainerSession>();
+#if !UE_BUILD_SHIPPING
+    if(FParse::Param(FCommandLine::Get(),TEXT("TrainerVerify")))GetWorld()->SpawnActor<ATrainerRuntimeVerifier>();
+#endif
 }
 
 void AAscGameMode::StartTraining()
 {
-	CurrentSpotIndex = 0;
-	if (Arena)
-	{
-		Arena->LoadAndBuild(SpotDataFilePath);
-	}
+    if(auto PC=Cast<AAscPlayerController>(UGameplayStatics::GetPlayerController(this,0)))PC->StartPractice(1,TEXT("All"),1,0);
 }
 
 void AAscGameMode::NextSpot()
 {
-	CurrentSpotIndex++;
-	if (Arena)
-	{
-		Arena->NextSpot();
-	}
+    if(auto PC=Cast<AAscPlayerController>(UGameplayStatics::GetPlayerController(this,0)))
+    if(auto Session=PC->GetSession())
+    {
+        int32 Count=0;for(const auto& P:Session->GetPoints())if(Session->SelectedRegion==TEXT("All") || P.Region==Session->SelectedRegion)++Count;
+        CurrentSpotIndex=Count?(Session->SelectedPoint+1)%Count:0;
+        PC->StartPractice(static_cast<int32>(Session->Mode),Session->SelectedRegion,Session->Difficulty,CurrentSpotIndex);
+    }
 }
 
 void AAscGameMode::RestartCurrentSpot()
 {
-	if (Arena)
-	{
-		Arena->RestartSpot();
-	}
+    if(auto PC=Cast<AAscPlayerController>(UGameplayStatics::GetPlayerController(this,0)))
+    if(auto Session=PC->GetSession())PC->StartPractice(static_cast<int32>(Session->Mode),Session->SelectedRegion,Session->Difficulty,Session->SelectedPoint);
+}
+
+int32 AAscGameMode::GetCurrentSpotIndex() const
+{
+    if(auto Session=Cast<ATrainerSession>(UGameplayStatics::GetActorOfClass(this,ATrainerSession::StaticClass())))return Session->SelectedPoint;
+    return CurrentSpotIndex;
 }

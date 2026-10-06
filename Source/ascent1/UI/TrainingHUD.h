@@ -11,4 +11,7 @@ class ASCENT1_API ATrainingHUD : public AHUD
 
 public:
 	virtual void DrawHUD() override;
+private:
+    UPROPERTY() class UTexture2D* Minimap = nullptr;
+    void DrawFeedback(const class ATrainerSession* Session);
 };

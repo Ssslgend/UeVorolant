@@ -1,11 +1,18 @@
 #include "AscCharacter.h"
 #include "AscWeaponComponent.h"
+#include "../Core/AscGameMode.h"
+#include "../Map/PrefireArena.h"
+#include "../Training/TrainingSettings.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Components/CapsuleComponent.h"
+#include "EngineUtils.h"
+#include "GameFramework/PlayerInput.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/InputSettings.h"
 
 AAscCharacter::AAscCharacter()
 {
@@ -13,7 +20,8 @@ AAscCharacter::AAscCharacter()
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(RootComponent);
-	Camera->SetRelativeLocation(FVector(0.0f, 0.0f, 160.0f));
+	// Eye at 160cm from floor; capsule center is at +91.5cm
+	Camera->SetRelativeLocation(FVector(0.0f, 0.0f, 160.0f - 91.5f));
 	Camera->bUsePawnControlRotation = true;
 
 	WeaponComponent = CreateDefaultSubobject<UAscWeaponComponent>(TEXT("WeaponComponent"));
@@ -26,6 +34,7 @@ AAscCharacter::AAscCharacter()
 	Movement->GravityScale = 1.4f;
 	Movement->JumpZVelocity = 370.0f;
 	Movement->MaxWalkSpeed = RifleSpeed;
+	Movement->GetNavAgentPropertiesRef().bCanCrouch = true;
 
 	GetCapsuleComponent()->SetCapsuleHalfHeight(91.5f);
 	GetCapsuleComponent()->SetCapsuleRadius(25.0f);
@@ -39,6 +48,7 @@ AAscCharacter::AAscCharacter()
 void AAscCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	ApplyPreferences(UTrainingPreferences::Load());
 
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
@@ -74,20 +84,22 @@ void AAscCharacter::Tick(float DeltaTime)
 
 	if (bIsWalking)
 	{
-		TargetSpeed *= 0.75f;
+		TargetSpeed *= WalkMultiplier;
 	}
 	if (GetCharacterMovement()->IsCrouching())
 	{
-		TargetSpeed *= 0.63f;
+		TargetSpeed *= CrouchMultiplier;
 	}
 
 	CurrentMoveSpeed = TargetSpeed;
 	GetCharacterMovement()->MaxWalkSpeed = CurrentMoveSpeed;
+	GetCharacterMovement()->MaxWalkSpeedCrouched = CurrentMoveSpeed;
 }
 
 void AAscCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+	NormalizeMouseInput();
 
 	if (UEnhancedInputComponent* EnhancedInput = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
@@ -105,6 +117,10 @@ void AAscCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 			EnhancedInput->BindAction(IA_Fire, ETriggerEvent::Started, this, &AAscCharacter::FirePressed);
 			EnhancedInput->BindAction(IA_Fire, ETriggerEvent::Completed, this, &AAscCharacter::FireReleased);
 		}
+		if (IA_Reset)
+		{
+			EnhancedInput->BindAction(IA_Reset, ETriggerEvent::Started, this, &AAscCharacter::ResetDuel);
+		}
 	}
 
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AAscCharacter::MoveForward);
@@ -117,6 +133,7 @@ void AAscCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction(TEXT("Crouch"), IE_Pressed, this, &AAscCharacter::CrouchPressed);
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Pressed, this, &AAscCharacter::FirePressed);
 	PlayerInputComponent->BindAction(TEXT("Fire"), IE_Released, this, &AAscCharacter::FireReleased);
+	PlayerInputComponent->BindAction(TEXT("Reset"), IE_Pressed, this, &AAscCharacter::ResetDuel);
 }
 
 void AAscCharacter::SetWeaponType(EWeaponType NewType)
@@ -143,8 +160,9 @@ void AAscCharacter::Look(const FInputActionValue& Value)
 	FVector2D LookAxis = Value.Get<FVector2D>();
 	if (Controller)
 	{
-		AddControllerYawInput(LookAxis.X);
-		AddControllerPitchInput(LookAxis.Y);
+		// Enhanced mouse look uses raw counts; legacy Turn/LookUp already receive the 0.07 axis scale.
+		AddControllerYawInput(LookAxis.X * FTrainerSettings::ValorantDegreesPerCount * MouseSensitivity);
+		AddControllerPitchInput(LookAxis.Y * FTrainerSettings::ValorantDegreesPerCount * MouseSensitivity);
 	}
 }
 
@@ -170,12 +188,12 @@ void AAscCharacter::MoveRight(float Value)
 
 void AAscCharacter::Turn(float Value)
 {
-	AddControllerYawInput(Value);
+	AddControllerYawInput(Value * MouseSensitivity);
 }
 
 void AAscCharacter::LookUp(float Value)
 {
-	AddControllerPitchInput(Value);
+	AddControllerPitchInput(Value * MouseSensitivity);
 }
 
 void AAscCharacter::WalkPressed()  { bIsWalking = true; }
@@ -208,5 +226,100 @@ void AAscCharacter::FireReleased()
 	if (WeaponComponent)
 	{
 		WeaponComponent->StopFiring();
+	}
+}
+
+FVector AAscCharacter::GetCameraLocation() const
+{
+	return Camera ? Camera->GetComponentLocation() : GetActorLocation();
+}
+
+void AAscCharacter::ResetDuel()
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			// Prefer game-mode restart so the whole spot (bot + duel) is rebuilt.
+			if (AGameModeBase* GM = World->GetAuthGameMode())
+			{
+				if (GM->IsA<AAscGameMode>())
+				{
+					Cast<AAscGameMode>(GM)->RestartCurrentSpot();
+					return;
+				}
+			}
+		}
+	}
+
+	// Fallback: ask any arena in the world.
+	for (TActorIterator<APrefireArena> It(GetWorld()); It; ++It)
+	{
+		It->RestartSpot();
+		return;
+	}
+}
+
+void AAscCharacter::ApplyTrainerSettings(const FTrainerSettings& Settings)
+{
+	RifleSpeed = Settings.Movement.RunSpeed;
+	WalkMultiplier = Settings.Movement.WalkMultiplier;
+	CrouchMultiplier = Settings.Movement.CrouchMultiplier;
+	WalkSpeed = Settings.Movement.RunSpeed * Settings.Movement.WalkMultiplier;
+	CrouchSpeed = Settings.Movement.RunSpeed * Settings.Movement.CrouchMultiplier;
+
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	if (Movement)
+	{
+		Movement->JumpZVelocity = Settings.Movement.JumpZVelocity;
+		Movement->MaxWalkSpeed = RifleSpeed;
+		if (Settings.Movement.bInstantStop)
+		{
+			Movement->MaxAcceleration = 100000.0f;
+			Movement->BrakingDecelerationWalking = 100000.0f;
+			Movement->GroundFriction = 100.0f;
+		}
+	}
+
+	NormalizeMouseInput();
+
+	if (Camera)
+	{
+		Camera->SetRelativeLocation(FVector(0.0f, 0.0f, Settings.Hit.StandEyeHeightCm - Settings.Hit.CapsuleHalfHeightCm));
+	}
+}
+
+void AAscCharacter::ApplyPreferences(const FTrainerPreferences& Preferences)
+{
+	FString Error;
+	if (!UTrainingPreferences::Validate(Preferences, Error)) return;
+	MouseSensitivity = Preferences.Sensitivity;
+	NormalizeMouseInput();
+}
+
+void AAscCharacter::NormalizeMouseInput()
+{
+	// PlayerInput reads these flags from InputSettings each frame. Disable all hidden mouse scaling.
+	UInputSettings* InputSettings = GetMutableDefault<UInputSettings>();
+	InputSettings->bEnableMouseSmoothing = false;
+	InputSettings->bEnableFOVScaling = false;
+	if (APlayerController* PC = Cast<APlayerController>(GetController()))
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		PC->SetDeprecatedInputYawScale(1.0f);
+		PC->SetDeprecatedInputPitchScale(1.0f);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		if (UPlayerInput* Input = PC->PlayerInput)
+		{
+			FInputAxisProperties Axis;
+			Axis.DeadZone = 0.0f;
+			Axis.Exponent = 1.0f;
+			Axis.Sensitivity = FTrainerSettings::ValorantDegreesPerCount;
+			Axis.bInvert = false;
+			Input->SetAxisProperties(EKeys::MouseX, Axis);
+			Input->SetAxisProperties(EKeys::MouseY, Axis);
+			Input->SetAxisProperties(EKeys::Mouse2D, Axis);
+			Input->ClearSmoothing();
+		}
 	}
 }

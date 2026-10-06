@@ -6,6 +6,8 @@
 #include "../UI/StatsPanelWidget.h"
 #include "Blueprint/UserWidget.h"
 #include "GameFramework/Pawn.h"
+#include "TimerManager.h"
+#include "GameFramework/PlayerInput.h"
 
 void AAscPlayerController::BeginPlay()
 {
@@ -30,25 +32,31 @@ void AAscPlayerController::BeginPlay()
 		}
 	}
 
-	SetInputMode(FInputModeGameOnly());
-	bShowMouseCursor = false;
+    Preferences=UTrainingPreferences::Load();
+    SelectedMode=Preferences.LastMode;SelectedRegion=Preferences.LastRegion;SelectedDifficulty=Preferences.LastDifficulty;SelectedPoint=Preferences.LastPoint;
+    GetWorldTimerManager().SetTimerForNextTick(this,&AAscPlayerController::OpenMenu);
 }
 
 void AAscPlayerController::SetupInputComponent()
 {
 	Super::SetupInputComponent();
 
+    // Engine debug view shortcuts run independently of gameplay bindings.
+    // Reserve the personal-point keys so they cannot also change the render view.
+    if(PlayerInput)PlayerInput->DebugExecBindings.RemoveAll([](const FKeyBind& Binding)
+    {return Binding.Key==EKeys::F5 || Binding.Key==EKeys::F6 || Binding.Key==EKeys::F7;});
+
 	if (!InputComponent)
 	{
 		return;
 	}
 
-	InputComponent->BindKey(EKeys::One, IE_Pressed, this, &AAscPlayerController::RegionOne);
-	InputComponent->BindKey(EKeys::Two, IE_Pressed, this, &AAscPlayerController::RegionTwo);
-	InputComponent->BindKey(EKeys::Three, IE_Pressed, this, &AAscPlayerController::RegionThree);
-	InputComponent->BindKey(EKeys::Four, IE_Pressed, this, &AAscPlayerController::RegionFour);
-	InputComponent->BindKey(EKeys::Five, IE_Pressed, this, &AAscPlayerController::RegionFive);
-	InputComponent->BindKey(EKeys::Six, IE_Pressed, this, &AAscPlayerController::RegionSix);
+    InputComponent->BindKey(EKeys::Escape,IE_Pressed,this,&AAscPlayerController::ToggleMenu).bExecuteWhenPaused=true;
+    InputComponent->BindKey(EKeys::R,IE_Pressed,this,&AAscPlayerController::RestartPractice);
+    InputComponent->BindKey(EKeys::N,IE_Pressed,this,&AAscPlayerController::NextPractice);
+    InputComponent->BindKey(EKeys::F5,IE_Pressed,this,&AAscPlayerController::CapturePlayerPoint);
+    InputComponent->BindKey(EKeys::F6,IE_Pressed,this,&AAscPlayerController::CaptureEnemyPoint);
+    InputComponent->BindKey(EKeys::F7,IE_Pressed,this,&AAscPlayerController::SavePersonalPoint);
 }
 
 void AAscPlayerController::ShowCrosshair(bool bShow)

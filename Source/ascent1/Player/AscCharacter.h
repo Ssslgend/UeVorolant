@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Training/TrainingPreferences.h"
 #include "AscCharacter.generated.h"
 
 class UCameraComponent;
@@ -42,6 +43,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	EWeaponType GetWeaponType() const { return CurrentWeapon; }
 
+	UFUNCTION(BlueprintCallable, Category = "Camera")
+	FVector GetCameraLocation() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Training")
+	void ResetDuel();
+
+	/** Apply trainer settings (speeds, smoothing). */
+	UFUNCTION(BlueprintCallable, Category = "Training")
+	void ApplyTrainerSettings(const struct FTrainerSettings& Settings);
+
+	UFUNCTION(BlueprintCallable, Category = "Training")
+	void ApplyPreferences(const FTrainerPreferences& Preferences);
+
 	// ---- Enhanced Input handlers ----
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
@@ -67,6 +81,12 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Valorant")
 	float CrouchSpeed = 340.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Movement|Valorant")
+	float WalkMultiplier = 0.75f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Movement|Valorant")
+	float CrouchMultiplier = 0.63f;
 
 protected:
 	UPROPERTY(VisibleAnywhere)
@@ -96,8 +116,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	UInputAction* IA_Fire;
 
+	UPROPERTY(EditAnywhere, Category = "Input")
+	UInputAction* IA_Reset;
+
 	EWeaponType CurrentWeapon;
 	float CurrentMoveSpeed;
 	bool bIsWalking;
 	bool bIsFiring;
+	float MouseSensitivity = 0.4f;
+	void NormalizeMouseInput();
 };

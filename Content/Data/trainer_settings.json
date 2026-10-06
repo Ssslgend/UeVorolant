@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "movement": {
+    "runSpeed": 540.0,
+    "walkMultiplier": 0.75,
+    "crouchMultiplier": 0.63,
+    "jumpZVelocity": 370.0,
+    "instantStop": true
+  },
+  "hit": {
+    "headRadiusCm": 4.0,
+    "standEyeHeightCm": 160.0,
+    "torsoHeightCm": 125.0,
+    "capsuleHalfHeightCm": 91.5
+  },
+  "bot": {
+    "delayMs": 250.0,
+    "windupMs": 0.0,
+    "randomizeStance": false
+  },
+  "duel": {
+    "timeoutMs": 30000.0,
+    "resetDelayMs": 1500.0,
+    "autoReset": true
+  },
+  "map": {
+    "meshPath": "/Game/Ascent/AscentPlayable.AscentPlayable",
+    "meshScale": 0.0,
+    "groundProbeHeightCm": 500.0
+  },
+  "input": {
+    "disableSmoothing": true,
+    "valorantSensitivity": 0.4,
+    "mouseDpi": 800.0
+  }
+}

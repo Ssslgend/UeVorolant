@@ -7,6 +7,10 @@ public class ascent1 : ModuleRules
 	public ascent1(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+
+		// Flat module layout (no Public/Private folders): expose the module root so
+		// sources can include each other as "Training/...", "Player/...", "Target/...".
+		PublicIncludePaths.Add(ModuleDirectory);
 	
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",

@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "generator": "manual/1.0",
+  "map": {
+    "id": "ascent",
+    "displayName": "亚海悬城 Ascent",
+    "minimapUrl": "",
+    "calibration": {
+      "note": "minimap 像素 → UE 世界 XY 的仿射标定（≥2 个锚点）",
+      "anchors": [
+        {
+          "uv": [
+            0.0,
+            0.0
+          ],
+          "world": [
+            -200.0,
+            -3360.0
+          ]
+        },
+        {
+          "uv": [
+            1.0,
+            1.0
+          ],
+          "world": [
+            -11000.0,
+            190.0
+          ]
+        }
+      ]
+    }
+  },
+  "points": [
+    {
+      "id": "ascent_a_main_to_site_01",
+      "name": "A大→A包点 头线",
+      "type": "prefire",
+      "player": {
+        "uv": [
+          420.0,
+          610.0
+        ],
+        "pos": [
+          -200.0,
+          -3360.0,
+          6781.0
+        ],
+        "yaw": 27.9
+      },
+      "enemy": {
+        "uv": [
+          520.0,
+          520.0
+        ],
+        "pos": [
+          1710.0,
+          -2350.0,
+          6884.0
+        ],
+        "yaw": -152.1,
+        "stance": "stand"
+      },
+      "bot": {
+        "delayMs": 250,
+        "fireMode": "instant_kill",
+        "losTrigger": true,
+        "eyeHeight": "auto"
+      },
+      "difficulty": 2,
+      "notes": "映射 playable_report DL_A_Main_to_Default；Bot 站三箱/默认包位后 headglitch"
+    },
+    {
+      "id": "ascent_mid_to_market_01",
+      "name": "中路→市场 窄缝头线",
+      "type": "prefire",
+      "player": {
+        "uv": [
+          380.0,
+          520.0
+        ],
+        "pos": [
+          -3800.0,
+          -4000.0,
+          6769.0
+        ],
+        "yaw": 90.0
+      },
+      "enemy": {
+        "uv": [
+          380.0,
+          420.0
+        ],
+        "pos": [
+          -3800.0,
+          -2000.0,
+          6757.0
+        ],
+        "yaw": -90.0,
+        "stance": "stand"
+      },
+      "bot": {
+        "delayMs": 250,
+        "fireMode": "instant_kill",
+        "losTrigger": true,
+        "eyeHeight": "auto"
+      },
+      "difficulty": 3,
+      "notes": "映射 playable_report DL_Mid_Tiles_Pizza；中路过点第一枪"
+    },
+    {
+      "id": "ascent_b_main_to_boat_01",
+      "name": "B大→B船屋 头线",
+      "type": "prefire",
+      "player": {
+        "uv": [
+          180.0,
+          420.0
+        ],
+        "pos": [
+          -9150.0,
+          -2230.0,
+          6388.0
+        ],
+        "yaw": 127.4
+      },
+      "enemy": {
+        "uv": [
+          80.0,
+          360.0
+        ],
+        "pos": [
+          -11000.0,
+          190.0,
+          6567.0
+        ],
+        "yaw": -52.6,
+        "stance": "stand"
+      },
+      "bot": {
+        "delayMs": 250,
+        "fireMode": "instant_kill",
+        "losTrigger": true,
+        "eyeHeight": "auto"
+      },
+      "difficulty": 2,
+      "notes": "映射 playable_report DL_BMain_to_Default；B 船屋/默认包位"
+    }
+  ],
+  "settings": {
+    "timeoutMs": 30000,
+    "resetDelayMs": 1500,
+    "showHitMarker": true
+  }
+}

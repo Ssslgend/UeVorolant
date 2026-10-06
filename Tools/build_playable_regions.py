@@ -30,9 +30,22 @@ def args_after_double_dash():
 
 
 def world_bbox(obj):
-    corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
-    mins = Vector((min(v[i] for v in corners) for i in range(3)))
-    maxs = Vector((max(v[i] for v in corners) for i in range(3)))
+    """True world AABB from mesh verts (bound_box can be stale after edits)."""
+    mesh = obj.data
+    if mesh is None or len(mesh.vertices) == 0:
+        corners = [obj.matrix_world @ Vector(c) for c in obj.bound_box]
+        mins = Vector((min(v[i] for v in corners) for i in range(3)))
+        maxs = Vector((max(v[i] for v in corners) for i in range(3)))
+        return mins, maxs, (mins + maxs) * 0.5, maxs - mins
+    mw = obj.matrix_world
+    xs, ys, zs = [], [], []
+    for v in mesh.vertices:
+        w = mw @ v.co
+        xs.append(w.x)
+        ys.append(w.y)
+        zs.append(w.z)
+    mins = Vector((min(xs), min(ys), min(zs)))
+    maxs = Vector((max(xs), max(ys), max(zs)))
     return mins, maxs, (mins + maxs) * 0.5, maxs - mins
 
 
@@ -63,9 +76,11 @@ def add_box(name, location, size, mat, collection):
     mesh.transform(Matrix.Diagonal((size[0] / 2, size[1] / 2, size[2] / 2, 1.0)))
     obj = bpy.data.objects.new(name, mesh)
     obj.location = location
+    obj.matrix_world = Matrix.Translation(Vector(location))
     if mat:
         mesh.materials.append(mat)
     collection.objects.link(obj)
+    bpy.context.view_layer.update()
     return obj
 
 
@@ -205,13 +220,26 @@ def build_collision_boxes(objs, collection, mat):
     return boxes, ramps
 
 
+GLOBAL_EXCLUDE = re.compile(r"(?i)^(safety_|seal_)")
+
+
+def replace_with_aabb_box(name, bmin, bmax, mat, collection):
+    """Create a box exactly covering [bmin,bmax] in world space."""
+    size = (bmax.x - bmin.x, bmax.y - bmin.y, bmax.z - bmin.z)
+    center = ((bmin.x + bmax.x) / 2, (bmin.y + bmax.y) / 2, (bmin.z + bmax.z) / 2)
+    return add_box(name, center, size, mat, collection)
+
+
 def process_region(src_objects, region_name, stand_xy, cover_xy, floor_z, out_dir, mats_all):
     cx = (stand_xy[0] + cover_xy[0]) * 0.5
     cy = (stand_xy[1] + cover_xy[1]) * 0.5
     dist = math.hypot(stand_xy[0] - cover_xy[0], stand_xy[1] - cover_xy[1])
     radius = max(dist + PEEK_MARGIN, 18.0)
 
-    # Fresh collections
+    pad = 0.5
+    bmin = Vector((cx - radius - pad, cy - radius - pad, 45.0))
+    bmax = Vector((cx + radius + pad, cy + radius + pad, 95.0))
+
     root = bpy.data.collections.new(region_name)
     bpy.context.scene.collection.children.link(root)
     coll_vis = bpy.data.collections.new("Visual")
@@ -220,20 +248,49 @@ def process_region(src_objects, region_name, stand_xy, cover_xy, floor_z, out_di
     root.children.link(coll_col)
 
     kept = []
-    dropped = {"far": 0, "small": 0, "ok": 0}
+    dropped = {"far": 0, "small": 0, "global": 0, "clipped": 0, "ok": 0}
     for obj in src_objects:
         if obj.type != "MESH":
             continue
+        if GLOBAL_EXCLUDE.match(obj.name):
+            dropped["global"] += 1
+            continue
         mins, maxs, center, size = world_bbox(obj)
-        d = math.hypot(center.x - cx, center.y - cy)
-        if d > radius:
+
+        # intersection with crop box
+        imin = Vector((max(mins.x, bmin.x), max(mins.y, bmin.y), max(mins.z, bmin.z)))
+        imax = Vector((min(maxs.x, bmax.x), min(maxs.y, bmax.y), min(maxs.z, bmax.z)))
+        if imin.x >= imax.x or imin.y >= imax.y or imin.z >= imax.z:
             dropped["far"] += 1
             continue
+
         edge = max(size.x, size.y, size.z)
         if edge < MIN_KEEP_EDGE and not HG_NAMES.match(obj.name):
             dropped["small"] += 1
             continue
-        # copy
+
+        # Any mesh that extends outside the crop box is replaced by its
+        # AABB ∩ crop_box so FBX bounds cannot leak past the region.
+        extends = (
+            mins.x < bmin.x
+            or maxs.x > bmax.x
+            or mins.y < bmin.y
+            or maxs.y > bmax.y
+        )
+        if extends:
+            box = replace_with_aabb_box(
+                f"CLIP_{obj.name[:40]}", imin, imax, mats_all["floor"], coll_vis
+            )
+            mat = classify_material_slot(box, mats_all)
+            if box.data.materials:
+                box.data.materials[0] = mat
+            else:
+                box.data.materials.append(mat)
+            kept.append(box)
+            dropped["clipped"] += 1
+            continue
+
+        # modest-sized mesh fully used (copy as-is)
         new = obj.copy()
         new.data = obj.data.copy()
         new.animation_data_clear()
@@ -278,9 +335,46 @@ def process_region(src_objects, region_name, stand_xy, cover_xy, floor_z, out_di
 
     # Export visual + collision FBX
     fbx_path = os.path.join(out_dir, f"{region_name}.fbx")
+    export_objs = list(coll_vis.objects) + list(coll_col.objects)
+    # Bake world transforms so FBX cannot mix local/world spaces.
+    bpy.context.view_layer.update()
+    cleaned = []
+    for o in export_objs:
+        if o.type != "MESH":
+            continue
+        o.data.transform(o.matrix_world)
+        o.matrix_world = Matrix.Identity(4)
+        # drop origin junk (unit cubes left at 0,0,0)
+        mn, mx, ctr, sz = world_bbox(o)
+        if abs(ctr.x) < 2 and abs(ctr.y) < 2 and max(sz.x, sz.y) < 3:
+            mesh = o.data
+            bpy.data.objects.remove(o, do_unlink=True)
+            if mesh.users == 0:
+                bpy.data.meshes.remove(mesh)
+            continue
+        cleaned.append(o)
+    export_objs = cleaned
     for obj in bpy.context.scene.objects:
         obj.select_set(False)
-    export_objs = list(coll_vis.objects) + list(coll_col.objects)
+    for o in export_objs:
+        o.select_set(True)
+    # debug: max world span of export set
+    if export_objs:
+        emin = Vector((1e9, 1e9, 1e9))
+        emax = Vector((-1e9, -1e9, -1e9))
+        for o in export_objs:
+            mn, mx, _, _ = world_bbox(o)
+            for i in range(3):
+                emin[i] = min(emin[i], mn[i])
+                emax[i] = max(emax[i], mx[i])
+        print(f"[Debug] {region_name} export_span=({emax.x-emin.x:.1f},{emax.y-emin.y:.1f}) crop=({bmax.x-bmin.x:.1f},{bmax.y-bmin.y:.1f})")
+        # list offenders that exceed crop
+        for o in export_objs:
+            mn, mx, ctr, sz = world_bbox(o)
+            if mx.x - mn.x > (bmax.x - bmin.x) * 1.02 or mx.y - mn.y > (bmax.y - bmin.y) * 1.02:
+                print(f"  OFFENDER {o.name} span=({mx.x-mn.x:.1f},{mx.y-mn.y:.1f}) ctr=({ctr.x:.1f},{ctr.y:.1f})")
+            elif ctr.x < bmin.x - 1 or ctr.x > bmax.x + 1 or ctr.y < bmin.y - 1 or ctr.y > bmax.y + 1:
+                print(f"  OUTSIDE {o.name} ctr=({ctr.x:.1f},{ctr.y:.1f}) span=({mx.x-mn.x:.1f},{mx.y-mn.y:.1f})")
     for o in export_objs:
         o.select_set(True)
     if export_objs:
@@ -301,8 +395,25 @@ def process_region(src_objects, region_name, stand_xy, cover_xy, floor_z, out_di
         embed_textures=False,
     )
 
+    # Stats BEFORE cleanup
     vis_polys = sum(len(o.data.polygons) for o in coll_vis.objects)
     vis_objs = len(list(coll_vis.objects))
+    col_count = len(list(coll_col.objects))
+    materials_used = sorted(
+        {s.material.name for o in coll_vis.objects for s in o.material_slots if s.material}
+    )
+
+    # Remove this region's objects so later regions cannot leak them into FBX.
+    for o in list(coll_vis.objects) + list(coll_col.objects):
+        mesh = o.data if o.type == "MESH" else None
+        bpy.data.objects.remove(o, do_unlink=True)
+        if mesh and mesh.users == 0:
+            bpy.data.meshes.remove(mesh)
+    try:
+        bpy.data.collections.remove(root)
+    except Exception:
+        pass
+
     audit = {
         "region": region_name,
         "center": [cx, cy],
@@ -312,14 +423,14 @@ def process_region(src_objects, region_name, stand_xy, cover_xy, floor_z, out_di
         "ramp_colliders": ramp_cols,
         "visual_objects": vis_objs,
         "visual_polys": vis_polys,
-        "collision_boxes": len(list(coll_col.objects)),
-        "materials_used": sorted({s.material.name for o in coll_vis.objects for s in o.material_slots if s.material}),
+        "collision_boxes": col_count,
+        "materials_used": materials_used,
         "fbx_path": fbx_path,
         "fbx_size_bytes": os.path.getsize(fbx_path),
         "pass_objects_lt_300": vis_objs < 300,
         "pass_polys_lt_200k": vis_polys < 200000,
-        "pass_materials": 3 <= len({s.material.name for o in coll_vis.objects for s in o.material_slots if s.material}) <= 4,
-        "pass_collision": len(list(coll_col.objects)) >= 3,
+        "pass_materials": 3 <= len(materials_used) <= 4,
+        "pass_collision": col_count >= 3,
     }
     return audit
 

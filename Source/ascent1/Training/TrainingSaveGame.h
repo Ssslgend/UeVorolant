@@ -18,6 +18,10 @@ struct FTrainingRecord
 	UPROPERTY() float BestReactionTimeMs = 0.0f;
 	UPROPERTY() int32 TotalShots = 0;
 	UPROPERTY() int32 TotalHits = 0;
+    UPROPERTY() int32 Headshots = 0;
+    UPROPERTY() bool bWon = false;
+    UPROPERTY() float StoppedShotRate = 0;
+    UPROPERTY() float AverageAimErrorDegrees = 0;
 };
 
 UCLASS()
